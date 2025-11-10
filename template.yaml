@@ -1,0 +1,516 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  RDA Image Generation System - Phase 1 Core MVP
+  Generates Google Responsive Display Ad images using AI
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment (affects resource naming)
+
+  MockMode:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enable mock mode for free testing (true) or real Replicate calls (false)
+
+# =============================================================================
+# GLOBALS
+# =============================================================================
+Globals:
+  Function:
+    Timeout: 120
+    MemorySize: 1024
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # DYNAMODB TABLE - Single-table design for jobs and images
+  # ===========================================================================
+  RDAImageJobsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'RDAImageJobs-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+
+      # Primary Key Structure
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: customer_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      # Global Secondary Indexes for querying
+      GlobalSecondaryIndexes:
+        # GSI 1: Query jobs by customer
+        - IndexName: CustomerCreatedAtIndex
+          KeySchema:
+            - AttributeName: customer_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI 2: Query jobs by status
+        - IndexName: StatusCreatedAtIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+      # Enable streams for future features
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: Database
+
+  # ===========================================================================
+  # S3 BUCKET - Store generated images
+  # ===========================================================================
+  RDAImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'rda-images-${Environment}-${AWS::AccountId}'
+
+      # Server-side encryption
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+      # Versioning disabled per requirements
+      VersioningConfiguration:
+        Status: Suspended
+
+      # Lifecycle policy for cleanup
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldImages
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpirationInDays: 7
+          - Id: DeleteTempFiles
+            Status: Enabled
+            ExpirationInDays: 1
+            Prefix: temp/
+
+      # Security settings
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+      # CORS for browser access
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: Storage
+
+  # ===========================================================================
+  # SQS QUEUES - Message queue for async processing
+  # ===========================================================================
+
+  # Main processing queue
+  ImageGenerationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'image-generation-queue-${Environment}'
+      VisibilityTimeout: 120  # Match Lambda timeout
+      MessageRetentionPeriod: 345600  # 4 days
+      ReceiveMessageWaitTimeSeconds: 20  # Long polling
+
+      # Retry configuration
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ImageGenerationDLQ.Arn
+        maxReceiveCount: 3
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: Queue
+
+  # Dead Letter Queue for failed messages
+  ImageGenerationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'image-generation-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600  # 14 days for investigation
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: DLQ
+
+  # ===========================================================================
+  # SECRETS MANAGER - Store Replicate API token
+  # ===========================================================================
+  ReplicateAPITokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'rda-generator/replicate-token-${Environment}'
+      Description: Replicate API token for image generation (update with real token)
+      SecretString: !Sub |
+        {
+          "token": "r8_PLACEHOLDER_UPDATE_ME"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: Secret
+
+  # ===========================================================================
+  # IAM ROLES - Least privilege access for Lambda functions
+  # ===========================================================================
+
+  # Base execution role for all Lambda functions
+  BaseLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'rda-lambda-base-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      # Basic Lambda execution permissions
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  # Controller Lambda specific permissions
+  ControllerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'rda-controller-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt RDAImageJobsTable.Arn
+                  - !Sub '${RDAImageJobsTable.Arn}/index/*'
+
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - lambda:InvokeAsync
+                Resource: '*'  # Will be restricted to Prompt Builder ARN later
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  # Prompt Builder Lambda specific permissions
+  PromptBuilderLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'rda-prompt-builder-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                Resource: !GetAtt RDAImageJobsTable.Arn
+
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:SendMessageBatch
+                Resource: !GetAtt ImageGenerationQueue.Arn
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  # Worker Lambda specific permissions
+  WorkerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'rda-worker-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole
+
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                Resource: !Sub '${RDAImagesBucket.Arn}/*'
+
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                Resource: !GetAtt RDAImageJobsTable.Arn
+
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref ReplicateAPITokenSecret
+
+        - PolicyName: RekognitionAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rekognition:DetectModerationLabels
+                  - rekognition:DetectText
+                Resource: '*'
+
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt ImageGenerationQueue.Arn
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  # ===========================================================================
+  # CLOUDWATCH LOG GROUPS - Centralized logging
+  # ===========================================================================
+
+  ControllerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/rda-controller-${Environment}'
+      RetentionInDays: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  PromptBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/rda-prompt-builder-${Environment}'
+      RetentionInDays: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/rda-worker-${Environment}'
+      RetentionInDays: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+Outputs:
+  DynamoDBTableName:
+    Description: Name of the DynamoDB table for storing jobs and images
+    Value: !Ref RDAImageJobsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-DynamoDBTable'
+
+  S3BucketName:
+    Description: Name of the S3 bucket for storing generated images
+    Value: !Ref RDAImagesBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-S3Bucket'
+
+  SQSQueueURL:
+    Description: URL of the SQS queue for image generation tasks
+    Value: !Ref ImageGenerationQueue
+    Export:
+      Name: !Sub '${AWS::StackName}-SQSQueue'
+
+  SQSQueueArn:
+    Description: ARN of the SQS queue for Lambda triggers
+    Value: !GetAtt ImageGenerationQueue.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SQSQueueArn'
+
+  DLQueueURL:
+    Description: URL of the Dead Letter Queue for failed messages
+    Value: !Ref ImageGenerationDLQ
+    Export:
+      Name: !Sub '${AWS::StackName}-DLQueue'
+
+  ReplicateSecretArn:
+    Description: ARN of the Replicate API token secret
+    Value: !Ref ReplicateAPITokenSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-ReplicateSecret'
+
+  ControllerRoleArn:
+    Description: ARN of the Controller Lambda IAM role
+    Value: !GetAtt ControllerLambdaRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ControllerRole'
+
+  PromptBuilderRoleArn:
+    Description: ARN of the Prompt Builder Lambda IAM role
+    Value: !GetAtt PromptBuilderLambdaRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-PromptBuilderRole'
+
+  WorkerRoleArn:
+    Description: ARN of the Worker Lambda IAM role
+    Value: !GetAtt WorkerLambdaRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-WorkerRole'
+
+  Environment:
+    Description: Deployment environment
+    Value: !Ref Environment
+
+  MockMode:
+    Description: Mock mode status (true for testing, false for production)
+    Value: !Ref MockMode

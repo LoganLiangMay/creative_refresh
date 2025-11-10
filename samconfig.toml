@@ -1,0 +1,21 @@
+version = 0.1
+
+[dev]
+[dev.deploy]
+[dev.deploy.parameters]
+stack_name = "rda-generator-dev"
+s3_prefix = "rda-generator-dev"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=\"dev\" MockMode=\"true\""
+
+[prod]
+[prod.deploy]
+[prod.deploy.parameters]
+stack_name = "rda-generator-prod"
+s3_prefix = "rda-generator-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=\"prod\" MockMode=\"false\""

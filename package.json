@@ -1,0 +1,37 @@
+{
+  "name": "rda-image-generator",
+  "version": "1.0.0",
+  "description": "Google RDA Image Generation System",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "deploy:dev": "sam deploy --parameter-overrides Environment=dev MockMode=true --stack-name rda-generator-dev",
+    "deploy:prod": "sam deploy --parameter-overrides Environment=prod MockMode=false --stack-name rda-generator-prod",
+    "build": "sam build",
+    "validate": "sam validate",
+    "local:controller": "sam local start-api --env-vars env.json",
+    "test:integration": "jest --testPathPattern=integration"
+  },
+  "keywords": [
+    "rda",
+    "google",
+    "image-generation",
+    "aws",
+    "lambda"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.1497.0",
+    "axios": "^1.6.2",
+    "replicate": "^0.25.0",
+    "sharp": "^0.33.0",
+    "openai": "^4.20.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.8",
+    "@aws-cdk/aws-lambda": "^1.198.0"
+  }
+}

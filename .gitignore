@@ -1,0 +1,54 @@
+# Node modules
+node_modules/
+**/node_modules/
+
+# SAM build artifacts
+.aws-sam/
+samconfig.toml.local
+packaged.yaml
+
+# Environment files
+.env
+.env.*
+env.json
+
+# AWS credentials
+.aws/
+aws-exports.js
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+*.zip
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Deployment logs
+deployment_*.log
+
+# Sample images from testing
+real_mode_sample_*.jpg
+mock_mode_sample_*.jpg
