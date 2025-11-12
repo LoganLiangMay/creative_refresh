@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDA Publisher - Test UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+        }
+
+        .form-section h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #4a5568;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="url"],
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group small {
+            display: block;
+            color: #a0aec0;
+            margin-top: 5px;
+            font-size: 0.85rem;
+        }
+
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f7fafc;
+        }
+
+        .drop-zone:hover {
+            border-color: #667eea;
+            background: #edf2f7;
+        }
+
+        .drop-zone.dragover {
+            border-color: #667eea;
+            background: #e6f2ff;
+        }
+
+        .drop-zone-content svg {
+            width: 48px;
+            height: 48px;
+            color: #a0aec0;
+            margin-bottom: 15px;
+        }
+
+        .drop-zone-content p {
+            color: #4a5568;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        .drop-zone-content .hint {
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+
+        .image-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .preview-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e2e8f0;
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .preview-item-remove {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255, 0, 0, 0.8);
+            color: white;
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #fc8181;
+        }
+
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+
+        .result-section {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            background: #f7fafc;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .result-section.show {
+            display: block;
+        }
+
+        .result-section h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+
+        .result-section pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.9rem;
+        }
+
+        .char-count {
+            float: right;
+            color: #a0aec0;
+            font-size: 0.85rem;
+        }
+
+        .char-count.warning {
+            color: #ed8936;
+        }
+
+        .char-count.error {
+            color: #e53e3e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 RDA Publisher</h1>
+            <p>Create Responsive Display Ads with Google Ads API</p>
+        </div>
+
+        <div id="alertContainer"></div>
+
+        <div class="main-content">
+            <form id="adForm">
+                <!-- Image Upload Section -->
+                <div class="form-section">
+                    <h2>📸 Step 1: Upload Images</h2>
+                    <div class="form-group">
+                        <label>Upload Images (1-10 images)</label>
+                        <div id="dropZone" class="drop-zone">
+                            <div class="drop-zone-content">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <p>Drag & drop images here</p>
+                                <p class="hint">or click to browse (max 10 images, 10MB each)</p>
+                            </div>
+                            <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+                        </div>
+                        <div id="imagePreview" class="image-preview"></div>
+                        <small>✨ Images will automatically be resized to landscape (1200x628) and square (1200x1200) versions for Google Ads</small>
+                    </div>
+                </div>
+
+                <!-- Ad Text Section -->
+                <div class="form-section">
+                    <h2>✍️ Step 2: Ad Text & Details</h2>
+
+                    <div class="form-group">
+                        <label>Business Name <span class="char-count" id="businessNameCount">0/25</span></label>
+                        <input type="text" id="businessName" maxlength="25" placeholder="Your Company Name" required>
+                        <small>Maximum 25 characters</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Long Headline <span class="char-count" id="longHeadlineCount">0/90</span></label>
+                        <input type="text" id="longHeadline" maxlength="90" placeholder="Your compelling long headline here" required>
+                        <small>Maximum 90 characters</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Headlines (one per line, max 5) <span class="char-count" id="headlinesCount">0 lines</span></label>
+                        <textarea id="headlines" rows="5" placeholder="Headline 1&#10;Headline 2&#10;Headline 3" required></textarea>
+                        <small>Each headline: maximum 30 characters. At least 1 required, up to 5 recommended.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Descriptions (one per line, max 5) <span class="char-count" id="descriptionsCount">0 lines</span></label>
+                        <textarea id="descriptions" rows="5" placeholder="Description 1&#10;Description 2&#10;Description 3" required></textarea>
+                        <small>Each description: maximum 90 characters. At least 1 required, up to 5 recommended.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Final URL</label>
+                        <input type="url" id="finalUrl" placeholder="https://www.example.com" value="https://example.com" required>
+                        <small>Landing page URL for your ad</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Call to Action (Optional)</label>
+                        <select id="callToAction">
+                            <option value="Learn More">Learn More</option>
+                            <option value="Apply Now">Apply Now</option>
+                            <option value="Book Now">Book Now</option>
+                            <option value="Contact Us">Contact Us</option>
+                            <option value="Download">Download</option>
+                            <option value="Get Quote">Get Quote</option>
+                            <option value="Shop Now">Shop Now</option>
+                            <option value="Sign Up">Sign Up</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary" id="publishBtn">
+                    <span>🚀 Publish Responsive Display Ad</span>
+                </button>
+            </form>
+
+            <!-- Result Section -->
+            <div id="resultSection" class="result-section">
+                <h3>✅ Success! Ad Published</h3>
+                <pre id="resultContent"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Character counters
+        const charCounters = {
+            businessName: { element: document.getElementById('businessName'), counter: document.getElementById('businessNameCount'), max: 25 },
+            longHeadline: { element: document.getElementById('longHeadline'), counter: document.getElementById('longHeadlineCount'), max: 90 },
+        };
+
+        Object.entries(charCounters).forEach(([key, { element, counter, max }]) => {
+            element.addEventListener('input', () => {
+                const length = element.value.length;
+                counter.textContent = `${length}/${max}`;
+                counter.classList.toggle('warning', length > max * 0.8);
+                counter.classList.toggle('error', length > max);
+            });
+        });
+
+        // Line counters for textareas
+        document.getElementById('headlines').addEventListener('input', (e) => {
+            const lines = e.target.value.split('\n').filter(l => l.trim());
+            const counter = document.getElementById('headlinesCount');
+            counter.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
+            counter.classList.toggle('warning', lines.length > 5);
+        });
+
+        document.getElementById('descriptions').addEventListener('input', (e) => {
+            const lines = e.target.value.split('\n').filter(l => l.trim());
+            const counter = document.getElementById('descriptionsCount');
+            counter.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
+            counter.classList.toggle('warning', lines.length > 5);
+        });
+
+        // Image upload handling
+        const dropZone = document.getElementById('dropZone');
+        const imageInput = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        let selectedFiles = [];
+
+        dropZone.addEventListener('click', () => imageInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).slice(0, 10);
+            renderImagePreviews();
+        }
+
+        function renderImagePreviews() {
+            imagePreview.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'preview-item';
+                    div.innerHTML = `
+                        <img src="${e.target.result}" alt="${file.name}">
+                        <button type="button" class="preview-item-remove" onclick="removeImage(${index})">&times;</button>
+                    `;
+                    imagePreview.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function removeImage(index) {
+            selectedFiles.splice(index, 1);
+            renderImagePreviews();
+        }
+
+        function showAlert(message, type = 'info') {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} show`;
+            alert.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(alert);
+
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    alert.remove();
+                }, 10000);
+            }
+        }
+
+        // Form submission
+        document.getElementById('adForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (selectedFiles.length === 0) {
+                showAlert('Please upload at least one image', 'error');
+                return;
+            }
+
+            const publishBtn = document.getElementById('publishBtn');
+            publishBtn.disabled = true;
+            publishBtn.innerHTML = '<div class="spinner"></div><span>Publishing...</span>';
+
+            try {
+                // Prepare form data
+                const formData = new FormData();
+                selectedFiles.forEach(file => {
+                    formData.append('images', file);
+                });
+
+                // Prepare ad data
+                const headlines = document.getElementById('headlines').value
+                    .split('\n')
+                    .map(h => h.trim())
+                    .filter(h => h)
+                    .slice(0, 5);
+
+                const descriptions = document.getElementById('descriptions').value
+                    .split('\n')
+                    .map(d => d.trim())
+                    .filter(d => d)
+                    .slice(0, 5);
+
+                const adData = {
+                    businessName: document.getElementById('businessName').value,
+                    longHeadline: document.getElementById('longHeadline').value,
+                    headlines,
+                    descriptions,
+                    finalUrl: document.getElementById('finalUrl').value,
+                    callToAction: document.getElementById('callToAction').value,
+                    adName: `RDA_${Date.now()}`,
+                    status: 'PAUSED', // Start paused for review
+                };
+
+                formData.append('adData', JSON.stringify(adData));
+
+                showAlert('Uploading images to S3...', 'info');
+
+                // Make request
+                const response = await fetch('/api/publish-ad-full-flow', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('✅ Ad published successfully!', 'success');
+                    document.getElementById('resultContent').textContent = JSON.stringify(result, null, 2);
+                    document.getElementById('resultSection').classList.add('show');
+
+                    // Scroll to result
+                    document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showAlert(`❌ Failed: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                publishBtn.disabled = false;
+                publishBtn.innerHTML = '<span>🚀 Publish Responsive Display Ad</span>';
+            }
+        });
+    </script>
+</body>
+</html>
