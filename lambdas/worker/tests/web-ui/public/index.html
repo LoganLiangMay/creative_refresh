@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDA Image Generator - Test UI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 RDA Image Generator</h1>
+            <p class="subtitle">Test Worker Lambda with Visual Feedback</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Panel: Input Form -->
+            <div class="panel input-panel">
+                <h2>Generate Image</h2>
+
+                <form id="generateForm">
+                    <!-- Prompt Input -->
+                    <div class="form-group">
+                        <label for="prompt">Prompt</label>
+                        <textarea
+                            id="prompt"
+                            name="prompt"
+                            rows="3"
+                            placeholder="Describe the image you want to generate..."
+                            required
+                        ></textarea>
+                        <div class="hint">Example: "Professional advertisement featuring modern wireless headphones"</div>
+                    </div>
+
+                    <!-- Input Images Upload -->
+                    <div class="form-group">
+                        <label>Input Images (Optional - for multi-modal)</label>
+                        <div
+                            id="dropZone"
+                            class="drop-zone"
+                        >
+                            <div class="drop-zone-content">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <p>Drag & drop images here</p>
+                                <p class="drop-zone-hint">or click to browse</p>
+                            </div>
+                            <input
+                                type="file"
+                                id="inputImages"
+                                name="inputImages"
+                                accept="image/*"
+                                multiple
+                                style="display: none;"
+                            >
+                        </div>
+                        <div id="imagePreview" class="image-preview"></div>
+                        <div class="hint">Add product photos, logos, or reference images for fusion</div>
+                    </div>
+
+                    <!-- Options Row -->
+                    <div class="options-row">
+                        <!-- Aspect Ratio -->
+                        <div class="form-group">
+                            <label for="aspectRatio">Aspect Ratio</label>
+                            <select id="aspectRatio" name="aspectRatio">
+                                <option value="1:1">1:1 (Square)</option>
+                                <option value="1.91:1">1.91:1 (Wide)</option>
+                            </select>
+                        </div>
+
+                        <!-- Mode Toggle -->
+                        <div class="form-group">
+                            <label for="mockMode">Mode</label>
+                            <div class="mode-toggle">
+                                <input type="checkbox" id="mockMode" name="mockMode" checked>
+                                <label for="mockMode" class="toggle-label">
+                                    <span class="toggle-label-mock">🎭 Mock (Free)</span>
+                                    <span class="toggle-label-real">💰 Real ($0.003)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="generateBtn" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                        </svg>
+                        Generate Image
+                    </button>
+                </form>
+
+                <!-- Progress Indicator -->
+                <div id="progress" class="progress hidden">
+                    <div class="progress-spinner"></div>
+                    <div class="progress-text">Generating...</div>
+                    <div class="progress-details" id="progressDetails"></div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Results -->
+            <div class="panel results-panel">
+                <h2>Results</h2>
+
+                <div id="noResults" class="no-results">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <p>No images generated yet</p>
+                    <p class="hint">Fill out the form and click Generate</p>
+                </div>
+
+                <div id="results" class="results hidden">
+                    <!-- Result Metadata -->
+                    <div class="result-metadata">
+                        <div class="metadata-item">
+                            <span class="metadata-label">Mode:</span>
+                            <span id="resultMode" class="metadata-value"></span>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Duration:</span>
+                            <span id="resultDuration" class="metadata-value"></span>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Cost:</span>
+                            <span id="resultCost" class="metadata-value"></span>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Prompt Display -->
+                    <div id="enhancedPromptSection" class="enhanced-prompt hidden">
+                        <h3>Enhanced Prompt</h3>
+                        <div id="enhancedPrompt" class="enhanced-prompt-text"></div>
+                    </div>
+
+                    <!-- Image Comparison -->
+                    <div class="image-comparison">
+                        <div id="inputImagesDisplay" class="input-images-display hidden">
+                            <h3>Input Images</h3>
+                            <div id="inputImagesList" class="input-images-list"></div>
+                        </div>
+
+                        <div class="generated-image-container">
+                            <h3>Generated Image</h3>
+                            <div id="generatedImageWrapper" class="generated-image-wrapper">
+                                <img id="generatedImage" class="generated-image" alt="Generated image">
+                            </div>
+                            <button id="downloadBtn" class="btn btn-secondary hidden">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Download Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <footer>
+            <button id="clearDataBtn" class="btn btn-text">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Clear All Test Data
+            </button>
+            <div class="footer-info">
+                <span>Powered by Google nano-banana (Gemini 2.5 Flash Image)</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="errorToast" class="toast toast-error hidden">
+        <div class="toast-content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            <span id="errorMessage"></span>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

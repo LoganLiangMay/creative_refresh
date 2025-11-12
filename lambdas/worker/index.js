@@ -9,8 +9,13 @@
 const AWS = require('aws-sdk');
 const sharp = require('sharp');
 const axios = require('axios');
+const path = require('path');
+const Replicate = require('replicate');
 const { v4: uuidv4 } = require('uuid');
 const MockGenerator = require('./utils/mockGenerator');
+const { getReplicateToken, getAppConfig } = require('./utils/config');
+const { enhancePrompt } = require('./utils/promptEnhancer');
+const imageProcessor = require('./utils/image-processor');
 
 // AWS SDK clients
 const s3 = new AWS.S3();
@@ -22,43 +27,42 @@ const secretsManager = new AWS.SecretsManager();
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || 'RDAImageJobs-dev';
 const S3_BUCKET = process.env.S3_BUCKET || 'rda-generated-images-dev';
 const ENVIRONMENT = process.env.ENVIRONMENT || 'dev';
-const GEMINI_SECRET_NAME = process.env.GEMINI_SECRET_NAME || `rda-generator/gemini-api-key-${ENVIRONMENT}`;
+const REPLICATE_SECRET_NAME = process.env.REPLICATE_SECRET_NAME || `rda-generator/replicate-token-${ENVIRONMENT}`;
 
 // CRITICAL: Mock Mode check - must be first
 const MOCK_MODE = process.env.MOCK_MODE === 'true';
 console.log(`Worker Lambda starting in ${MOCK_MODE ? 'MOCK' : 'REAL'} mode`);
 
-// Gemini API key (cached)
-let geminiApiKey = null;
+// Replicate client (cached)
+let replicateClient = null;
 
 /**
- * Initialize Gemini API key from Secrets Manager
+ * Initialize Replicate client
+ * Uses config helper to work in both local and Lambda environments
  */
-async function initializeGemini() {
-    if (geminiApiKey) {
-        return geminiApiKey; // Already cached
+async function initializeReplicate() {
+    if (replicateClient) {
+        return replicateClient; // Already cached
     }
 
     try {
-        console.log(`Retrieving Gemini API key from secret: ${GEMINI_SECRET_NAME}`);
+        console.log('Initializing Replicate client...');
+        const apiToken = await getReplicateToken();
 
-        const secretResult = await secretsManager.getSecretValue({
-            SecretId: GEMINI_SECRET_NAME
-        }).promise();
-
-        const apiKey = secretResult.SecretString;
-
-        if (!apiKey || !apiKey.startsWith('AIza')) {
-            throw new Error('Invalid Gemini API key format - must start with AIza');
+        if (!apiToken || !apiToken.startsWith('r8_')) {
+            throw new Error('Invalid Replicate API token format - must start with r8_');
         }
 
-        geminiApiKey = apiKey;
-        console.log('Gemini API key retrieved successfully');
-        return geminiApiKey;
+        replicateClient = new Replicate({
+            auth: apiToken
+        });
+
+        console.log('Replicate client initialized successfully');
+        return replicateClient;
 
     } catch (error) {
-        console.error('Failed to retrieve Gemini API key:', error);
-        throw new Error(`Gemini API initialization failed: ${error.message}`);
+        console.error('Failed to initialize Replicate client:', error);
+        throw new Error(`Replicate API initialization failed: ${error.message}`);
     }
 }
 
@@ -117,25 +121,46 @@ async function processImage(message) {
         let imageBuffer;
         let generationTime;
         let cost;
+        let promptMetadata = null;
+
+        // Enhance prompt with OpenAI (if enabled and not in mock mode)
+        let finalPrompt = prompt;
+        if (!MOCK_MODE) {
+            const enhancementResult = await enhancePrompt(prompt, aspect_ratio, {
+                hasInputImages: input_images && input_images.length > 0
+            });
+            finalPrompt = enhancementResult.enhanced;
+            promptMetadata = {
+                original_prompt: enhancementResult.original,
+                enhanced_prompt: enhancementResult.enhanced,
+                was_enhanced: enhancementResult.wasEnhanced,
+                enhancement_time: enhancementResult.enhancementTime || 0,
+                enhancement_model: enhancementResult.model || 'none'
+            };
+
+            if (enhancementResult.wasEnhanced) {
+                console.log(`Prompt enhanced: "${prompt}" -> "${finalPrompt.substring(0, 80)}..."`);
+            }
+        }
 
         if (MOCK_MODE) {
             // CRITICAL: Mock Mode Implementation using MockGenerator
-            console.log(`Generating MOCK image for ${image_id}`);
-            const mockResult = await MockGenerator.generateImage(aspect_ratio, prompt, image_index);
+            console.log(`Generating MOCK image for ${image_id}${input_images.length > 0 ? ` (multi-modal with ${input_images.length} input images)` : ''}`);
+            const mockResult = await MockGenerator.generateImage(aspect_ratio, finalPrompt, image_index, input_images);
             imageBuffer = mockResult.buffer;
             generationTime = mockResult.generationTime;
             cost = 0; // Mock mode is free
 
             console.log(`Mock image generated in ${generationTime}ms`);
         } else {
-            // Real Gemini API integration - Updated to use Google's Imagen
-            console.log(`Generating REAL image for ${image_id} using Gemini Imagen 3.0`);
-            const geminiResult = await generateRealImage(aspect_ratio, prompt, input_images);
-            imageBuffer = geminiResult.buffer;
-            generationTime = geminiResult.generationTime;
-            cost = 0.04; // Gemini API cost per image (approximate)
+            // Real Replicate API integration using nano-banana (Gemini 2.5 Flash Image)
+            console.log(`Generating REAL image for ${image_id} using Google nano-banana`);
+            const replicateResult = await generateRealImage(aspect_ratio, finalPrompt, input_images);
+            imageBuffer = replicateResult.buffer;
+            generationTime = replicateResult.generationTime;
+            cost = 0.003; // Replicate nano-banana cost per image (approximate)
 
-            console.log(`Real image generated in ${generationTime}ms using Gemini API`);
+            console.log(`Real image generated in ${generationTime}ms using nano-banana`);
         }
 
         // Process and validate image
@@ -185,7 +210,8 @@ async function processImage(message) {
             cost,
             generationTime,
             totalTime,
-            validation
+            validation,
+            promptMetadata
         );
 
         console.log(`Successfully processed ${image_id} in ${totalTime}ms (cost: $${cost})`);
@@ -212,71 +238,131 @@ async function processImage(message) {
 }
 
 /**
- * Generate real image using Google's Gemini Imagen API
- * Updated implementation using Gemini API instead of Replicate
+ * Generate real image using Replicate API
+ * Uses Google's nano-banana (Gemini 2.5 Flash Image) model
  */
 async function generateRealImage(aspectRatio, prompt, inputImages = []) {
     const startTime = Date.now();
 
     try {
-        console.log(`Initializing Gemini API for Imagen 3.0 model...`);
-        const apiKey = await initializeGemini();
+        console.log(`Initializing Replicate client for nano-banana model...`);
+        const replicate = await initializeReplicate();
 
-        // Convert aspect ratio to dimensions for better prompting
-        let dimensionPrompt = '';
+        // Convert aspect ratio to Replicate's aspect_ratio format
+        let replicateAspectRatio = '1:1';
         if (aspectRatio === '1.91:1') {
-            dimensionPrompt = ' Landscape orientation, wide banner format.';
+            replicateAspectRatio = '16:9'; // Closest to 1.91:1
         } else if (aspectRatio === '1:1') {
-            dimensionPrompt = ' Square image format.';
+            replicateAspectRatio = '1:1';
         }
 
-        // Enhance prompt with dimension information
-        const enhancedPrompt = prompt + dimensionPrompt;
+        // Process input images if provided (for multi-modal generation)
+        let imageUrls = [];
+        if (inputImages && inputImages.length > 0) {
+            console.log(`Processing ${inputImages.length} input image(s) for multi-modal generation...`);
 
-        console.log(`Calling Gemini Imagen API with params:`, {
-            prompt: enhancedPrompt.substring(0, 100) + (enhancedPrompt.length > 100 ? '...' : ''),
-            aspect_ratio: aspectRatio,
-            model: 'imagen-3.0-generate-002',
-            has_input_images: inputImages.length > 0
+            // nano-banana prefers direct URLs over data URLs
+            // Check if inputs are URLs or local files
+            for (const input of inputImages) {
+                if (input.startsWith('http://') || input.startsWith('https://')) {
+                    // Direct URL - use as-is
+                    imageUrls.push(input);
+                    console.log(`✅ Using direct URL: ${input.substring(0, 60)}...`);
+                } else {
+                    // Local file - need to convert to data URL
+                    // (In production, consider uploading to cloud storage first)
+                    const imageData = await imageProcessor.prepareInputImages([input]);
+                    imageUrls.push(imageData.dataUrls[0]);
+                    console.log(`✅ Processed local file: ${path.basename(input)} (${(imageData.totalSize / 1024).toFixed(1)}KB)`);
+                }
+            }
+
+            console.log(`✅ Prepared ${imageUrls.length} image(s) for nano-banana`);
+        }
+
+        console.log(`Calling Replicate API with params:`, {
+            prompt: prompt.substring(0, 100) + (prompt.length > 100 ? '...' : ''),
+            aspect_ratio: replicateAspectRatio,
+            model: 'google/nano-banana',
+            has_input_images: imageUrls.length > 0,
+            input_image_count: imageUrls.length
         });
 
-        // Prepare request payload for Gemini API
-        const requestPayload = {
-            model: "imagen-3.0-generate-002",
-            prompt: enhancedPrompt,
-            response_format: "b64_json",
-            n: 1
+        // Prepare input parameters for nano-banana
+        const replicateInput = {
+            prompt: prompt,
+            aspect_ratio: replicateAspectRatio,
+            output_format: "jpg"
         };
 
-        // Call Gemini API
-        const response = await axios({
-            method: 'POST',
-            url: 'https://generativelanguage.googleapis.com/v1beta/openai/images/generations',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            data: requestPayload,
-            timeout: 120000 // 2 minute timeout for image generation
-        });
+        // Add input images if provided (multi-modal)
+        // nano-banana supports 'image_input' parameter as an array
+        // This enables multi-image fusion and character consistency
+        if (imageUrls.length > 0) {
+            replicateInput.image_input = imageUrls;
+            console.log(`Using ${imageUrls.length} input image(s) for multi-modal generation`);
+            imageUrls.forEach((url, i) => {
+                const displayUrl = url.startsWith('data:')
+                    ? `data URL (${(url.length / 1024).toFixed(1)}KB)`
+                    : url.substring(0, 60) + '...';
+                console.log(`  Image ${i + 1}: ${displayUrl}`);
+            });
+        }
+
+        // Run nano-banana model
+        // Model: google/nano-banana (Gemini 2.5 Flash Image)
+        // Features: Character consistency, multi-image fusion, conversational editing
+        const output = await replicate.run(
+            "google/nano-banana",
+            {
+                input: replicateInput
+            }
+        );
 
         const generationTime = Date.now() - startTime;
-        console.log(`Gemini API generation completed in ${generationTime}ms`);
+        console.log(`Replicate API generation completed in ${generationTime}ms`);
 
         // Validate response
-        if (!response.data || !response.data.data || !Array.isArray(response.data.data) || response.data.data.length === 0) {
-            throw new Error('Gemini API returned no images');
+        // nano-banana returns a single URL string, not an array
+        if (!output) {
+            throw new Error('Replicate API returned no image');
         }
 
-        // Extract base64 image data
-        const imageData = response.data.data[0];
-        if (!imageData.b64_json) {
-            throw new Error('Gemini API response missing b64_json data');
+        let imageUrl;
+
+        // Handle different output formats
+        if (typeof output === 'string') {
+            // Direct URL string
+            imageUrl = output;
+        } else if (typeof output === 'object' && output.url) {
+            // FileOutput object
+            imageUrl = typeof output.url === 'function' ? output.url() : output.url;
+        } else if (Array.isArray(output) && output.length > 0) {
+            // Fallback: array format (handle both old and new API responses)
+            const imageOutput = output[0];
+            if (typeof imageOutput === 'string') {
+                imageUrl = imageOutput;
+            } else if (typeof imageOutput === 'object' && imageOutput.url) {
+                imageUrl = typeof imageOutput.url === 'function' ? imageOutput.url() : imageOutput.url;
+            }
         }
 
-        // Convert base64 to buffer
-        const imageBuffer = Buffer.from(imageData.b64_json, 'base64');
-        console.log(`Converted base64 image to buffer: ${imageBuffer.length} bytes`);
+        if (!imageUrl) {
+            throw new Error('Replicate API returned unexpected output format');
+        }
+
+        console.log(`Downloading image from: ${imageUrl}`);
+
+        // Download the image from Replicate's CDN
+        const imageResponse = await axios({
+            method: 'GET',
+            url: imageUrl,
+            responseType: 'arraybuffer',
+            timeout: 30000 // 30 second timeout for download
+        });
+
+        const imageBuffer = Buffer.from(imageResponse.data);
+        console.log(`Downloaded image: ${imageBuffer.length} bytes`);
 
         return {
             buffer: imageBuffer,
@@ -285,8 +371,8 @@ async function generateRealImage(aspectRatio, prompt, inputImages = []) {
 
     } catch (error) {
         const generationTime = Date.now() - startTime;
-        console.error(`Gemini API generation failed after ${generationTime}ms:`, error.response?.data || error.message);
-        throw new Error(`Gemini Imagen API failed: ${error.message}`);
+        console.error(`Replicate API generation failed after ${generationTime}ms:`, error.message);
+        throw new Error(`Replicate API failed: ${error.message}`);
     }
 }
 
@@ -434,7 +520,7 @@ async function uploadToS3(buffer, key, metadata) {
                 generated_by: MOCK_MODE ? 'mock' : 'replicate',
                 environment: ENVIRONMENT
             },
-            Tags: `Environment=${ENVIRONMENT}&MockMode=${MOCK_MODE}`
+            Tagging: `Environment=${ENVIRONMENT}&MockMode=${MOCK_MODE}`
         };
 
         await s3.putObject(params).promise();
@@ -481,29 +567,38 @@ async function updateImageSuccess(
     cost,
     generationTime,
     totalTime,
-    validation
+    validation,
+    promptMetadata = null
 ) {
     try {
+        // Prepare item with optional prompt metadata
+        const item = {
+            PK: jobId,
+            SK: `IMAGE#${String(imageIndex + 1).padStart(3, '0')}`,
+            image_id: imageId,
+            image_index: imageIndex,
+            status: 'completed',
+            s3_url: s3Url,
+            s3_key: s3Key,
+            aspect_ratio: aspectRatio,
+            dimensions: dimensions,
+            cost: cost,
+            generation_time: generationTime,
+            processing_time: totalTime,
+            validation: validation,
+            mock_mode: MOCK_MODE,
+            generated_at: new Date().toISOString()
+        };
+
+        // Add prompt metadata if available
+        if (promptMetadata) {
+            item.prompt_metadata = promptMetadata;
+        }
+
         // Update image record
         await dynamodb.put({
             TableName: DYNAMODB_TABLE,
-            Item: {
-                PK: jobId,
-                SK: `IMAGE#${String(imageIndex + 1).padStart(3, '0')}`,
-                image_id: imageId,
-                image_index: imageIndex,
-                status: 'completed',
-                s3_url: s3Url,
-                s3_key: s3Key,
-                aspect_ratio: aspectRatio,
-                dimensions: dimensions,
-                cost: cost,
-                generation_time: generationTime,
-                processing_time: totalTime,
-                validation: validation,
-                mock_mode: MOCK_MODE,
-                generated_at: new Date().toISOString()
-            }
+            Item: item
         }).promise();
 
         // Update job progress

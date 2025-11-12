@@ -5,18 +5,34 @@
   "main": "index.js",
   "scripts": {
     "test": "MOCK_MODE=true jest --coverage",
-    "test:watch": "MOCK_MODE=true jest --watch"
+    "test:watch": "MOCK_MODE=true jest --watch",
+    "test:interactive": "node tests/interactive-test.js",
+    "test:local": "node tests/local/local-runner.js --mock-mode",
+    "test:local:real": "node tests/local/local-runner.js --real-mode",
+    "test:image-processor": "node tests/test-image-processor.js",
+    "test:multi-modal": "node tests/test-multi-modal.js",
+    "test:web-ui": "node tests/web-ui/server.js",
+    "fixtures:generate": "node tests/fixtures/generate-sample-images.js"
   },
   "dependencies": {
+    "@langchain/openai": "^1.0.0",
     "aws-sdk": "^2.1497.0",
-    "sharp": "^0.33.0",
     "axios": "^1.6.0",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "langchain": "^1.0.3",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^6.8.1",
+    "replicate": "^1.3.1",
+    "sharp": "^0.33.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
     "@types/jest": "^29.5.8",
-    "aws-sdk-mock": "^5.8.0"
+    "aws-sdk-mock": "^5.8.0",
+    "canvas": "^3.2.0",
+    "inquirer": "^8.2.7",
+    "jest": "^29.7.0"
   },
   "jest": {
     "testEnvironment": "node",

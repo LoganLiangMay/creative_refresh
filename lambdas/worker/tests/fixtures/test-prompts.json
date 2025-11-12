@@ -1,0 +1,150 @@
+{
+  "test_cases": [
+    {
+      "id": "basic_text_to_image",
+      "name": "Basic Text-to-Image Generation",
+      "description": "Simple text prompt without input images",
+      "prompt": "A professional product photograph of a coffee mug on a wooden table",
+      "aspect_ratio": "1:1",
+      "input_images": [],
+      "expected_cost": 0.003,
+      "category": "text-to-image"
+    },
+    {
+      "id": "widescreen_text_to_image",
+      "name": "Widescreen Text-to-Image",
+      "description": "Text prompt with 1.91:1 aspect ratio for social media",
+      "prompt": "A stunning landscape photograph of mountains at sunset",
+      "aspect_ratio": "1.91:1",
+      "input_images": [],
+      "expected_cost": 0.003,
+      "category": "text-to-image"
+    },
+    {
+      "id": "product_ad_with_image",
+      "name": "Product Advertisement from Photo",
+      "description": "Generate ad creative from product photo",
+      "prompt": "Professional advertisement showcasing this product in a modern lifestyle setting",
+      "aspect_ratio": "1:1",
+      "input_images": ["product-photo.jpg"],
+      "expected_cost": 0.003,
+      "category": "multi-modal"
+    },
+    {
+      "id": "brand_integration",
+      "name": "Brand Logo Integration",
+      "description": "Integrate brand logo into generated image",
+      "prompt": "Create a professional office scene with this brand logo prominently displayed",
+      "aspect_ratio": "1:1",
+      "input_images": ["brand-logo.png"],
+      "expected_cost": 0.003,
+      "category": "multi-modal"
+    },
+    {
+      "id": "multi_image_composite",
+      "name": "Multiple Image Composition",
+      "description": "Combine multiple input images into advertisement",
+      "prompt": "Create a compelling advertisement combining these product images with elegant styling",
+      "aspect_ratio": "1.91:1",
+      "input_images": ["product-photo.jpg", "brand-logo.png"],
+      "expected_cost": 0.003,
+      "category": "multi-modal"
+    },
+    {
+      "id": "stock_image_enhancement",
+      "name": "Stock Image Enhancement",
+      "description": "Enhance stock image with specific branding",
+      "prompt": "Transform this stock photo into a premium brand advertisement",
+      "aspect_ratio": "1:1",
+      "input_images": ["stock-image.jpg"],
+      "expected_cost": 0.003,
+      "category": "multi-modal"
+    },
+    {
+      "id": "batch_variations",
+      "name": "Batch Image Variations",
+      "description": "Generate multiple variations of the same concept",
+      "prompt": "A sleek modern smartphone advertisement with minimalist design",
+      "aspect_ratio": "1:1",
+      "input_images": [],
+      "expected_cost": 0.009,
+      "batch_size": 3,
+      "category": "batch"
+    },
+    {
+      "id": "complex_scene",
+      "name": "Complex Scene Description",
+      "description": "Detailed prompt with complex scene requirements",
+      "prompt": "A professional product photoshoot featuring elegant cosmetics on a marble surface with soft natural lighting, featuring rose gold accents and delicate shadows",
+      "aspect_ratio": "1:1",
+      "input_images": [],
+      "expected_cost": 0.003,
+      "category": "text-to-image"
+    },
+    {
+      "id": "social_media_ad",
+      "name": "Social Media Advertisement",
+      "description": "Instagram-style advertisement creative",
+      "prompt": "Create an eye-catching Instagram advertisement for a fitness product with vibrant colors and energetic composition",
+      "aspect_ratio": "1:1",
+      "input_images": [],
+      "expected_cost": 0.003,
+      "category": "text-to-image"
+    },
+    {
+      "id": "banner_ad",
+      "name": "Wide Banner Advertisement",
+      "description": "Wide format banner for web advertising",
+      "prompt": "Professional banner advertisement for a tech startup, featuring clean design and modern aesthetics",
+      "aspect_ratio": "1.91:1",
+      "input_images": [],
+      "expected_cost": 0.003,
+      "category": "text-to-image"
+    }
+  ],
+  "smoke_tests": [
+    {
+      "id": "smoke_basic",
+      "name": "Basic Smoke Test",
+      "prompt": "A simple test image",
+      "aspect_ratio": "1:1",
+      "input_images": []
+    },
+    {
+      "id": "smoke_widescreen",
+      "name": "Widescreen Smoke Test",
+      "prompt": "A simple widescreen test",
+      "aspect_ratio": "1.91:1",
+      "input_images": []
+    }
+  ],
+  "stress_tests": [
+    {
+      "id": "stress_long_prompt",
+      "name": "Very Long Prompt Test",
+      "prompt": "Create a highly detailed professional product photograph featuring an elegant watch with intricate mechanical details, placed on a luxurious velvet surface with dramatic lighting that highlights the reflective surfaces and creates beautiful bokeh in the background, while maintaining focus on the watch face and its delicate hands, with soft shadows that add depth and dimension to the overall composition",
+      "aspect_ratio": "1:1",
+      "input_images": []
+    },
+    {
+      "id": "stress_rapid_fire",
+      "name": "Rapid Fire Test",
+      "description": "Quick succession of simple prompts",
+      "prompts": [
+        "Coffee",
+        "Phone",
+        "Laptop",
+        "Shoes",
+        "Watch"
+      ],
+      "aspect_ratio": "1:1"
+    }
+  ],
+  "categories": {
+    "text-to-image": "Simple text prompts generating images from scratch",
+    "multi-modal": "Using input images combined with text prompts",
+    "batch": "Multiple image generation in parallel",
+    "smoke": "Quick validation tests",
+    "stress": "Performance and edge case testing"
+  }
+}

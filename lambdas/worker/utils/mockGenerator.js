@@ -13,13 +13,17 @@ class MockGenerator {
      * @param {string} aspectRatio - Either '1.91:1' or '1:1'
      * @param {string} prompt - The original prompt (for display)
      * @param {number} imageIndex - Index of the image in the batch
+     * @param {Array} inputImages - Optional input images for multi-modal generation
      * @returns {Promise<{buffer: Buffer, generationTime: number}>}
      */
-    static async generateImage(aspectRatio, prompt, imageIndex) {
+    static async generateImage(aspectRatio, prompt, imageIndex, inputImages = []) {
         const startTime = Date.now();
 
         // Simulate processing delay (500-1000ms for mock, NOT 30-60s like real)
-        await this.simulateDelay(500, 1000);
+        // Add extra time if input images provided (to simulate multi-modal processing)
+        const baseDelay = inputImages.length > 0 ? 1000 : 500;
+        const maxDelay = inputImages.length > 0 ? 2000 : 1000;
+        await this.simulateDelay(baseDelay, maxDelay);
 
         // Determine dimensions
         let width, height;
@@ -34,7 +38,7 @@ class MockGenerator {
         }
 
         // Create SVG with mock content
-        const svg = this.createSVG(width, height, aspectRatio, prompt, imageIndex);
+        const svg = this.createSVG(width, height, aspectRatio, prompt, imageIndex, inputImages);
 
         // Convert SVG to JPEG buffer using Sharp
         const buffer = await sharp(Buffer.from(svg))
@@ -58,9 +62,10 @@ class MockGenerator {
      * Create SVG markup for mock image
      * @private
      */
-    static createSVG(width, height, aspectRatio, prompt, imageIndex) {
+    static createSVG(width, height, aspectRatio, prompt, imageIndex, inputImages = []) {
         const timestamp = new Date().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
         const truncatedPrompt = prompt.substring(0, 60) + (prompt.length > 60 ? '...' : '');
+        const isMultiModal = inputImages.length > 0;
 
         // Calculate font sizes based on image dimensions
         const titleFontSize = Math.min(width, height) * 0.06; // 6% of smaller dimension
@@ -104,8 +109,16 @@ class MockGenerator {
             "${truncatedPrompt}"
         </text>
 
+        <!-- Multi-modal indicator (if input images provided) -->
+        ${isMultiModal ? `
+        <text x="${width / 2}" y="${height * 0.67}"
+              font-family="Arial, sans-serif" font-size="${detailsFontSize}" fill="#66FF66" opacity="0.9">
+            🖼️  Multi-Modal (${inputImages.length} input image${inputImages.length > 1 ? 's' : ''})
+        </text>
+        ` : ''}
+
         <!-- Mock mode indicator -->
-        <text x="${width / 2}" y="${height * 0.70}"
+        <text x="${width / 2}" y="${height * (isMultiModal ? 0.75 : 0.70)}"
               font-family="Arial, sans-serif" font-size="${detailsFontSize}" fill="#FFE066">
             ⚡ MOCK MODE - $0.00 ⚡
         </text>

@@ -200,7 +200,7 @@ Resources:
           Value: DLQ
 
   # ===========================================================================
-  # SECRETS MANAGER - Store Replicate API token
+  # SECRETS MANAGER - Store API tokens and keys
   # ===========================================================================
   ReplicateAPITokenSecret:
     Type: AWS::SecretsManager::Secret
@@ -210,6 +210,23 @@ Resources:
       SecretString: !Sub |
         {
           "token": "r8_PLACEHOLDER_UPDATE_ME"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: Secret
+
+  OpenAIAPIKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'rda-generator/openai-api-key-${Environment}'
+      Description: OpenAI API key for prompt enhancement (update with real key)
+      SecretString: !Sub |
+        {
+          "api_key": "sk-PLACEHOLDER_UPDATE_ME"
         }
       Tags:
         - Key: Environment
@@ -383,7 +400,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref ReplicateAPITokenSecret
+                Resource:
+                  - !Ref ReplicateAPITokenSecret
+                  - !Ref OpenAIAPIKeySecret
 
         - PolicyName: RekognitionAccess
           PolicyDocument:
@@ -449,6 +468,169 @@ Resources:
         - Key: Application
           Value: RDAGenerator
 
+  # ===========================================================================
+  # VIEWER LAMBDA - API to query DynamoDB and serve images
+  # ===========================================================================
+
+  ViewerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'rda-viewer-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+      Policies:
+        - PolicyName: DynamoDBReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt RDAImageJobsTable.Arn
+                  - !Sub '${RDAImageJobsTable.Arn}/index/*'
+
+        - PolicyName: S3SignedUrlAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub '${RDAImagesBucket.Arn}/*'
+
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  ViewerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'rda-viewer-${Environment}'
+      CodeUri: lambdas/viewer/
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt ViewerLambdaRole.Arn
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Ref RDAImageJobsTable
+          S3_BUCKET: !Ref RDAImagesBucket
+          ENVIRONMENT: !Ref Environment
+      Events:
+        ListJobs:
+          Type: Api
+          Properties:
+            Path: /jobs
+            Method: GET
+            RestApiId: !Ref ViewerApi
+        GetJob:
+          Type: Api
+          Properties:
+            Path: /jobs/{jobId}
+            Method: GET
+            RestApiId: !Ref ViewerApi
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+            RestApiId: !Ref ViewerApi
+        OptionsJobs:
+          Type: Api
+          Properties:
+            Path: /jobs
+            Method: OPTIONS
+            RestApiId: !Ref ViewerApi
+        OptionsJob:
+          Type: Api
+          Properties:
+            Path: /jobs/{jobId}
+            Method: OPTIONS
+            RestApiId: !Ref ViewerApi
+      Tags:
+        Environment: !Ref Environment
+        Application: RDAGenerator
+        Component: Viewer
+
+  ViewerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/rda-viewer-${Environment}'
+      RetentionInDays: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+
+  # ===========================================================================
+  # API GATEWAY - REST API for Viewer
+  # ===========================================================================
+
+  ViewerApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'rda-viewer-api-${Environment}'
+      StageName: !Ref Environment
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowMethods: "'GET,OPTIONS'"
+      Tags:
+        Environment: !Ref Environment
+        Application: RDAGenerator
+
+  # ===========================================================================
+  # S3 BUCKET - Static website hosting for viewer UI
+  # ===========================================================================
+
+  ViewerWebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'rda-viewer-${Environment}-${AWS::AccountId}'
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: RDAGenerator
+        - Key: Component
+          Value: ViewerWebsite
+
+  ViewerWebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ViewerWebsiteBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${ViewerWebsiteBucket.Arn}/*'
+
 # =============================================================================
 # OUTPUTS
 # =============================================================================
@@ -489,6 +671,12 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-ReplicateSecret'
 
+  OpenAISecretArn:
+    Description: ARN of the OpenAI API key secret
+    Value: !Ref OpenAIAPIKeySecret
+    Export:
+      Name: !Sub '${AWS::StackName}-OpenAISecret'
+
   ControllerRoleArn:
     Description: ARN of the Controller Lambda IAM role
     Value: !GetAtt ControllerLambdaRole.Arn
@@ -514,3 +702,21 @@ Outputs:
   MockMode:
     Description: Mock mode status (true for testing, false for production)
     Value: !Ref MockMode
+
+  ViewerApiUrl:
+    Description: URL of the Viewer API Gateway
+    Value: !Sub 'https://${ViewerApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ViewerApiUrl'
+
+  ViewerWebsiteUrl:
+    Description: URL of the static viewer website
+    Value: !GetAtt ViewerWebsiteBucket.WebsiteURL
+    Export:
+      Name: !Sub '${AWS::StackName}-ViewerWebsiteUrl'
+
+  ViewerWebsiteBucketName:
+    Description: Name of the S3 bucket hosting the viewer website
+    Value: !Ref ViewerWebsiteBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-ViewerWebsiteBucket'

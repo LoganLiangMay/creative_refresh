@@ -1,0 +1,8 @@
+# Ignore test output
+output/
+*.log
+*.json
+
+# Keep structure
+!.gitignore
+!README.md
