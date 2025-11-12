@@ -36,25 +36,36 @@ async function uploadImageAsset(customer, imageUrl, assetName, assetType = 'MARK
 
     // Download image data from S3
     const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const imageData = Buffer.from(response.data).toString('base64');
+    const imageData = Buffer.from(response.data);
 
-    // Create Asset
-    const asset = new resources.Asset({
-      name: assetName,
-      type: enums.AssetType.IMAGE,
-      image_asset: {
-        data: imageData,
+    // Create asset operation using mutateResources pattern
+    const operations = [
+      {
+        entity: 'asset',
+        operation: 'create',
+        resource: {
+          name: assetName,
+          type: enums.AssetType.IMAGE,
+          image_asset: {
+            data: imageData,
+          },
+        },
       },
-    });
+    ];
 
-    // Upload asset
-    const result = await customer.assets.create([asset]);
-    const assetResourceName = result.results[0].resource_name;
+    // Upload asset using mutateResources
+    const result = await customer.mutateResources(operations);
+    const assetResourceName = result[0].asset.resource_name;
 
     console.log(`✅ Uploaded ${assetType} asset: ${assetResourceName}`);
     return assetResourceName;
   } catch (error) {
     console.error(`❌ Failed to upload ${assetType} asset:`, error.message);
+    if (error.errors && error.errors.length > 0) {
+      error.errors.forEach((err, i) => {
+        console.error(`   Error ${i + 1}:`, err.message);
+      });
+    }
     throw new Error(`Failed to upload image asset: ${error.message}`);
   }
 }
@@ -174,21 +185,25 @@ async function createResponsiveDisplayAd(adData, options = {}) {
     // Get ad group resource name
     const adGroupResourceName = `customers/${process.env.GOOGLE_ADS_CUSTOMER_ID}/adGroups/${process.env.GOOGLE_ADS_AD_GROUP_ID}`;
 
-    const adGroupAd = new resources.AdGroupAd({
-      ad_group: adGroupResourceName,
-      ad,
-      status: options.status || enums.AdGroupAdStatus.PAUSED, // Start paused for safety
-    });
+    // Create the ad using mutateResources
+    const adGroupAdOperation = {
+      entity: 'ad_group_ad',
+      operation: 'create',
+      resource: {
+        ad_group: adGroupResourceName,
+        ad,
+        status: options.status || enums.AdGroupAdStatus.PAUSED, // Start paused for safety
+      },
+    };
 
-    // Create the ad
-    const response = await customer.adGroupAds.create([adGroupAd]);
+    const response = await customer.mutateResources([adGroupAdOperation]);
 
     console.log('\n🎉 Responsive Display Ad created successfully!');
-    console.log(`Resource Name: ${response.results[0].resource_name}`);
+    console.log(`Resource Name: ${response[0].ad_group_ad.resource_name}`);
 
     return {
       success: true,
-      resourceName: response.results[0].resource_name,
+      resourceName: response[0].ad_group_ad.resource_name,
       assets: {
         landscape: landscapeAssets,
         square: squareAssets,

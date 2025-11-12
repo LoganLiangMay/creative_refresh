@@ -11,6 +11,8 @@ const path = require('path');
 
 const { uploadImagesForRDA } = require('./lib/s3Upload');
 const { createResponsiveDisplayAd, listAccessibleCustomers } = require('./lib/googleAdsClient');
+const { generateImagesForRDA } = require('./lib/imageGenerator');
+const { enhancePromptForRDA } = require('./lib/promptEnhancer');
 
 const app = express();
 const PORT = process.env.LOCAL_SERVER_PORT || 3001;
@@ -340,6 +342,191 @@ app.post('/api/publish-ad-full-flow', upload.array('images', 10), async (req, re
     });
   } catch (error) {
     console.error('Error in full flow:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.errors || null,
+    });
+  }
+});
+
+/**
+ * POST /api/generate-images
+ * Generate AI images from a prompt (landscape + square for RDA)
+ * Uses OpenAI to create optimized prompts, then Replicate API for generation
+ * Supports optional reference image for context-aware generation
+ */
+app.post('/api/generate-images', upload.single('referenceImage'), async (req, res) => {
+  try {
+    const userPrompt = req.body.prompt || req.body.userPrompt;
+    const businessName = req.body.businessName || '';
+    const longHeadline = req.body.longHeadline || '';
+    const headlines = req.body.headlines ? (Array.isArray(req.body.headlines) ? req.body.headlines : req.body.headlines.split('\n').filter(h => h.trim())) : [];
+    const descriptions = req.body.descriptions ? (Array.isArray(req.body.descriptions) ? req.body.descriptions : req.body.descriptions.split('\n').filter(d => d.trim())) : [];
+
+    if (!userPrompt) {
+      return res.status(400).json({
+        success: false,
+        error: 'Prompt is required',
+      });
+    }
+
+    console.log(`\n📸 Image Generation Request`);
+    console.log(`   User Prompt: "${userPrompt}"`);
+    console.log(`   Business: ${businessName || 'N/A'}`);
+    console.log(`   Reference Image: ${req.file ? 'Yes' : 'No'}\n`);
+
+    // Use OpenAI to generate optimized prompts for both aspect ratios
+    const enhancedPrompts = await enhancePromptForRDA({
+      userPrompt,
+      businessName,
+      longHeadline,
+      headlines,
+      descriptions,
+      hasReferenceImage: !!req.file,
+    });
+
+    // Generate both landscape and square images with optimized prompts
+    const inputImages = req.file ? [req.file.buffer] : [];
+    const result = await generateImagesForRDA(enhancedPrompts, inputImages);
+
+    // Return base64 encoded images for preview
+    const response = {
+      success: true,
+      mode: process.env.MOCK_MODE === 'true' ? 'MOCK' : 'REAL',
+      images: {
+        landscape: {
+          data: result.landscape.toString('base64'),
+          dimensions: { width: 1200, height: 628 },
+          mimeType: 'image/jpeg',
+        },
+        square: {
+          data: result.square.toString('base64'),
+          dimensions: { width: 1200, height: 1200 },
+          mimeType: 'image/jpeg',
+        },
+      },
+      prompts: {
+        user: userPrompt,
+        landscape: result.prompts.landscape,
+        square: result.prompts.square,
+      },
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error generating images:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/generate-and-publish
+ * Complete workflow: Generate images from prompt → Upload to S3 → Publish RDA
+ * This is the unified flow combining image generation + RDA publishing
+ */
+app.post('/api/generate-and-publish', async (req, res) => {
+  try {
+    const {
+      prompt,
+      businessName,
+      longHeadline,
+      headlines,
+      descriptions,
+      finalUrl,
+      callToAction,
+      adName,
+      status,
+      mainColor,
+      accentColor,
+      allowFlexibleColor,
+    } = req.body;
+
+    // Validate required fields
+    if (!prompt) {
+      return res.status(400).json({ success: false, error: 'Prompt is required' });
+    }
+    if (!businessName) {
+      return res.status(400).json({ success: false, error: 'Business name is required' });
+    }
+    if (!longHeadline) {
+      return res.status(400).json({ success: false, error: 'Long headline is required' });
+    }
+    if (!headlines || headlines.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one headline is required' });
+    }
+    if (!descriptions || descriptions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one description is required',
+      });
+    }
+    if (!finalUrl) {
+      return res.status(400).json({ success: false, error: 'Final URL is required' });
+    }
+
+    console.log(`\n🎬 Starting complete workflow: Generate → Upload → Publish\n`);
+
+    // Step 1: Generate images using AI
+    console.log(`📸 Step 1: Generating images from prompt...`);
+    const generatedImages = await generateImagesForRDA(prompt);
+
+    // Step 2: Upload images to S3
+    console.log(`\n📤 Step 2: Uploading images to S3...`);
+    const uploadResults = await uploadImagesForRDA([
+      {
+        buffer: generatedImages.landscape,
+        name: `ai-generated-landscape-${Date.now()}.jpg`,
+      },
+      {
+        buffer: generatedImages.square,
+        name: `ai-generated-square-${Date.now()}.jpg`,
+      },
+    ]);
+
+    const landscapeUrls = uploadResults.landscape.map((r) => r.url);
+    const squareUrls = uploadResults.square.map((r) => r.url);
+
+    console.log(`✅ Uploaded ${landscapeUrls.length} landscape + ${squareUrls.length} square images\n`);
+
+    // Step 3: Publish RDA to Google Ads
+    console.log(`🚀 Step 3: Publishing Responsive Display Ad to Google Ads...\n`);
+    const result = await createResponsiveDisplayAd(
+      {
+        landscapeImageUrls: landscapeUrls,
+        squareImageUrls: squareUrls,
+        headlines,
+        longHeadline,
+        descriptions,
+        businessName,
+        finalUrl,
+        callToAction,
+        mainColor,
+        accentColor,
+        allowFlexibleColor,
+      },
+      {
+        adName: adName || `AI_RDA_${Date.now()}`,
+        status: status || 'PAUSED',
+      }
+    );
+
+    res.json({
+      ...result,
+      generatedImages: {
+        landscape: landscapeUrls,
+        square: squareUrls,
+      },
+      mode: process.env.MOCK_MODE === 'true' ? 'MOCK' : 'REAL',
+      prompt,
+    });
+
+    console.log(`\n✅ Complete workflow finished successfully!\n`);
+  } catch (error) {
+    console.error('Error in generate-and-publish workflow:', error);
     res.status(500).json({
       success: false,
       error: error.message,

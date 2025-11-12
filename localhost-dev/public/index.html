@@ -19,8 +19,53 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .two-column-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        @media (max-width: 1200px) {
+            .two-column-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .left-column, .right-column {
+            min-height: 400px;
+        }
+
+        .right-column {
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+
+        .preview-box {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 20px;
+        }
+
+        .preview-box h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #2d3748;
+        }
+
+        .preview-empty {
+            text-align: center;
+            padding: 40px;
+            color: #a0aec0;
+            font-style: italic;
         }
 
         .header {
@@ -198,6 +243,16 @@
             box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
         }
 
+        .btn-secondary {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(72, 187, 120, 0.4);
+        }
+
         .btn-primary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -295,35 +350,44 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎨 RDA Publisher</h1>
-            <p>Create Responsive Display Ads with Google Ads API</p>
+            <h1>🎨 AI-Powered RDA Publisher</h1>
+            <p>Generate images with AI and publish Responsive Display Ads to Google Ads</p>
         </div>
 
         <div id="alertContainer"></div>
 
-        <div class="main-content">
-            <form id="adForm">
-                <!-- Image Upload Section -->
-                <div class="form-section">
-                    <h2>📸 Step 1: Upload Images</h2>
-                    <div class="form-group">
-                        <label>Upload Images (1-10 images)</label>
-                        <div id="dropZone" class="drop-zone">
-                            <div class="drop-zone-content">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg>
-                                <p>Drag & drop images here</p>
-                                <p class="hint">or click to browse (max 10 images, 10MB each)</p>
-                            </div>
-                            <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
+        <div class="two-column-layout">
+            <!-- LEFT COLUMN: Form Inputs -->
+            <div class="left-column">
+                <form id="adForm">
+                    <!-- Image Prompt Section -->
+                    <div class="form-section">
+                        <h2>📝 Step 1: Describe Your Image</h2>
+                        <div class="form-group">
+                            <label>Image Prompt</label>
+                            <textarea id="imagePrompt" rows="3" placeholder="Describe the image you want to generate... (e.g., 'Modern minimalist headphones on clean white background with soft shadows')" style="min-height: 100px;"></textarea>
+                            <small>Describe the visual style and composition you want. We'll enhance this with your ad details below.</small>
                         </div>
-                        <div id="imagePreview" class="image-preview"></div>
-                        <small>✨ Images will automatically be resized to landscape (1200x628) and square (1200x1200) versions for Google Ads</small>
+
+                        <!-- Optional Reference Image Upload -->
+                        <div class="form-group">
+                            <label>Reference Image (Optional)</label>
+                            <div id="dropZone" class="drop-zone" style="min-height: 120px;">
+                                <div class="drop-zone-content">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 40px; height: 40px; margin: 0 auto 10px;">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                    <p style="margin: 5px 0; font-size: 0.95rem;">Upload reference image (optional)</p>
+                                    <p class="hint" style="margin: 0; font-size: 0.85rem;">Help AI understand your desired style</p>
+                                </div>
+                                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                            </div>
+                            <div id="imagePreview" class="image-preview"></div>
+                            <small>💡 Upload a reference image to guide the AI's style and composition</small>
+                        </div>
                     </div>
-                </div>
 
                 <!-- Ad Text Section -->
                 <div class="form-section">
@@ -374,19 +438,68 @@
                     </div>
                 </div>
 
+                <!-- AI Image Generation Section (Step 3) -->
+                <div class="form-section" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border: 2px solid #667eea;">
+                    <h2>🎨 Step 3: Generate AI Images</h2>
+                    <p style="color: #4a5568; margin-bottom: 20px;">
+                        Click below to generate images based on your image prompt and ad details. The AI will create contextually relevant images that match your brand and message.
+                    </p>
+                    <div class="form-group">
+                        <button type="button" id="generateBtn" class="btn btn-secondary" style="width: 100%; font-size: 1.1rem; padding: 18px;">
+                            🎨 Generate Images with AI
+                        </button>
+                        <div id="generateStatus" style="margin-top: 15px; text-align: center; color: #4299e1; font-weight: 500;"></div>
+                    </div>
+                    <small style="display: block; margin-top: 10px; color: #718096; text-align: center;">
+                        💡 Images will be created using your image prompt + business name + headlines for better context
+                    </small>
+                </div>
+
                 <!-- Submit Button -->
-                <button type="submit" class="btn btn-primary" id="publishBtn">
+                <button type="submit" class="btn btn-primary" id="publishBtn" style="margin-top: 20px;">
                     <span>🚀 Publish Responsive Display Ad</span>
                 </button>
             </form>
+        </div>
+
+        <!-- RIGHT COLUMN: Preview & Results -->
+        <div class="right-column">
+            <!-- Generated Images Preview -->
+            <div class="preview-box" id="generatedPreviewBox" style="display: none;">
+                <h3>🎨 Generated Images</h3>
+                <div id="generatedImagePreview">
+                    <!-- Generated images will appear here -->
+                </div>
+            </div>
+
+            <!-- Reference Image Preview -->
+            <div class="preview-box" id="referencePreviewBox" style="display: none;">
+                <h3>📸 Reference Image</h3>
+                <div id="referenceImagePreview">
+                    <!-- Reference image will appear here -->
+                </div>
+            </div>
 
             <!-- Result Section -->
-            <div id="resultSection" class="result-section">
+            <div class="preview-box" id="resultSection" style="display: none;">
                 <h3>✅ Success! Ad Published</h3>
-                <pre id="resultContent"></pre>
+                <pre id="resultContent" style="background: #f7fafc; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 0.85rem;"></pre>
+            </div>
+
+            <!-- Empty State -->
+            <div class="preview-box" id="emptyPreview">
+                <div class="preview-empty">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 15px; opacity: 0.3;">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <p>Generated images and results will appear here</p>
+                </div>
             </div>
         </div>
     </div>
+</div>
 
     <script>
         // Character counters
@@ -439,11 +552,162 @@
             }
         });
 
-        // Image upload handling
+        // AI Image Generation handling
+        let generatedImages = null; // Store generated image buffers
+
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const prompt = document.getElementById('imagePrompt').value.trim();
+
+            if (!prompt) {
+                showAlert('Please enter an image prompt in Step 1', 'error');
+                return;
+            }
+
+            const generateBtn = document.getElementById('generateBtn');
+            const generateStatus = document.getElementById('generateStatus');
+            const generatedPreview = document.getElementById('generatedImagePreview');
+
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<div class="spinner"></div><span>Generating...</span>';
+            generateStatus.textContent = selectedFiles.length > 0
+                ? 'Creating images based on your reference...'
+                : 'Creating contextually relevant images...';
+
+            try {
+                // Gather ad context from form fields
+                const businessName = document.getElementById('businessName').value.trim();
+                const longHeadline = document.getElementById('longHeadline').value.trim();
+                const headlines = document.getElementById('headlines').value
+                    .split('\n')
+                    .map(h => h.trim())
+                    .filter(h => h);
+                const descriptions = document.getElementById('descriptions').value
+                    .split('\n')
+                    .map(d => d.trim())
+                    .filter(d => d);
+
+                // Build request body with reference image if provided
+                let requestBody;
+                let headers = {};
+
+                // Always send ad context for better prompt enhancement
+                const adContext = {
+                    prompt: prompt, // Original user prompt
+                    businessName: businessName,
+                    longHeadline: longHeadline,
+                    headlines: headlines,
+                    descriptions: descriptions,
+                };
+
+                if (selectedFiles.length > 0) {
+                    // Send as multipart/form-data with reference image
+                    const formData = new FormData();
+                    formData.append('prompt', adContext.prompt);
+                    formData.append('businessName', adContext.businessName);
+                    formData.append('longHeadline', adContext.longHeadline);
+                    formData.append('headlines', adContext.headlines.join('\n'));
+                    formData.append('descriptions', adContext.descriptions.join('\n'));
+                    formData.append('referenceImage', selectedFiles[0]);
+                    requestBody = formData;
+                    // Don't set Content-Type - browser will set it with boundary for multipart
+                } else {
+                    // Send as JSON if no reference image
+                    headers['Content-Type'] = 'application/json';
+                    requestBody = JSON.stringify(adContext);
+                }
+
+                const response = await fetch('/api/generate-images', {
+                    method: 'POST',
+                    headers: headers,
+                    body: requestBody,
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+
+                // Store generated images
+                generatedImages = result.images;
+
+                // Display generated images in RIGHT COLUMN
+                generatedPreview.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+                        <div>
+                            <h4 style="margin-bottom: 8px; font-size: 0.9rem; color: #4a5568;">Landscape (1200x628)</h4>
+                            <img src="data:${result.images.landscape.mimeType};base64,${result.images.landscape.data}"
+                                 style="width: 100%; height: auto; display: block; border-radius: 8px; border: 2px solid #e2e8f0;">
+
+                            ${result.prompts && result.prompts.landscape ? `
+                            <details style="margin-top: 8px;">
+                                <summary style="cursor: pointer; color: #667eea; font-size: 0.85rem; padding: 6px 0;">
+                                    📝 View AI Prompt Used
+                                </summary>
+                                <div style="margin-top: 8px; padding: 12px; background: #f7fafc; border-radius: 6px; border-left: 3px solid #667eea;">
+                                    <p style="font-size: 0.8rem; color: #4a5568; line-height: 1.5; margin: 0;">
+                                        ${result.prompts.landscape}
+                                    </p>
+                                </div>
+                            </details>
+                            ` : ''}
+                        </div>
+
+                        <div>
+                            <h4 style="margin-bottom: 8px; font-size: 0.9rem; color: #4a5568;">Square (1200x1200)</h4>
+                            <img src="data:${result.images.square.mimeType};base64,${result.images.square.data}"
+                                 style="width: 100%; height: auto; aspect-ratio: 1/1; object-fit: cover; display: block; border-radius: 8px; border: 2px solid #10b981;">
+
+                            ${result.prompts && result.prompts.square ? `
+                            <details style="margin-top: 8px;">
+                                <summary style="cursor: pointer; color: #10b981; font-size: 0.85rem; padding: 6px 0;">
+                                    📝 View AI Prompt Used
+                                </summary>
+                                <div style="margin-top: 8px; padding: 12px; background: #f0fdf4; border-radius: 6px; border-left: 3px solid #10b981;">
+                                    <p style="font-size: 0.8rem; color: #4a5568; line-height: 1.5; margin: 0;">
+                                        ${result.prompts.square}
+                                    </p>
+                                </div>
+                            </details>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+
+                // Show generated preview box, hide empty state
+                document.getElementById('generatedPreviewBox').style.display = 'block';
+                document.getElementById('emptyPreview').style.display = 'none';
+
+                // Keep reference image visible if it was uploaded
+                // DON'T clear selectedFiles or referencePreviewBox - user needs to see what guided the AI
+
+                generateStatus.innerHTML = `✅ Images generated! (${result.mode} mode)<br>
+                    <details style="margin-top: 8px;">
+                        <summary style="cursor: pointer; color: #667eea; font-size: 0.85rem;">View AI-Optimized Prompts</summary>
+                        <div style="margin-top: 8px; padding: 8px; background: #f7fafc; border-radius: 4px; font-size: 0.8rem;">
+                            <strong>Landscape:</strong> ${result.prompts.landscape.substring(0, 150)}...<br><br>
+                            <strong>Square:</strong> ${result.prompts.square.substring(0, 150)}...
+                        </div>
+                    </details>`;
+                generateStatus.style.color = '#48bb78';
+
+                showAlert(`✅ Images generated successfully with AI-optimized prompts! Review on the right.`, 'success');
+
+            } catch (error) {
+                console.error('Generation error:', error);
+                generateStatus.textContent = '❌ Generation failed';
+                generateStatus.style.color = '#e53e3e';
+                showAlert(`Failed to generate images: ${error.message}`, 'error');
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '🎨 Generate Images';
+            }
+        });
+
+        // Reference image upload handling (for AI generation)
         const dropZone = document.getElementById('dropZone');
         const imageInput = document.getElementById('imageInput');
-        const imagePreview = document.getElementById('imagePreview');
-        let selectedFiles = [];
+        let selectedFiles = []; // Reference image(s) for AI
 
         dropZone.addEventListener('click', () => imageInput.click());
 
@@ -467,30 +731,43 @@
         });
 
         function handleFiles(files) {
-            selectedFiles = Array.from(files).slice(0, 10);
-            renderImagePreviews();
+            // Only take the first file as reference
+            if (files.length > 0) {
+                selectedFiles = [files[0]];
+                renderReferencePreview();
+            }
         }
 
-        function renderImagePreviews() {
-            imagePreview.innerHTML = '';
-            selectedFiles.forEach((file, index) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const div = document.createElement('div');
-                    div.className = 'preview-item';
-                    div.innerHTML = `
-                        <img src="${e.target.result}" alt="${file.name}">
-                        <button type="button" class="preview-item-remove" onclick="removeImage(${index})">&times;</button>
-                    `;
-                    imagePreview.appendChild(div);
-                };
-                reader.readAsDataURL(file);
-            });
+        function renderReferencePreview() {
+            if (selectedFiles.length === 0) {
+                document.getElementById('referencePreviewBox').style.display = 'none';
+                document.getElementById('imagePreview').innerHTML = '';
+                return;
+            }
+
+            const file = selectedFiles[0];
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Show in left column (clickable thumbnail)
+                document.getElementById('imagePreview').innerHTML = `
+                    <div class="preview-item" style="position: relative;">
+                        <img src="${e.target.result}"
+                             alt="${file.name}"
+                             style="max-height: 100px; cursor: pointer;"
+                             onclick="window.open('${e.target.result}', '_blank')"
+                             title="Click to view full size">
+                        <button type="button" class="preview-item-remove" onclick="removeReferenceImage()">&times;</button>
+                    </div>
+                `;
+
+                // Don't show reference image in right column - user can click thumbnail to see full size
+            };
+            reader.readAsDataURL(file);
         }
 
-        function removeImage(index) {
-            selectedFiles.splice(index, 1);
-            renderImagePreviews();
+        function removeReferenceImage() {
+            selectedFiles = [];
+            renderReferencePreview();
         }
 
         function showAlert(message, type = 'info') {
@@ -512,8 +789,11 @@
         document.getElementById('adForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            if (selectedFiles.length === 0) {
-                showAlert('Please upload at least one image', 'error');
+            // Check if user has generated images
+            const hasGeneratedImages = generatedImages !== null;
+
+            if (!hasGeneratedImages) {
+                showAlert('Please generate images with AI first (Step 1)', 'error');
                 return;
             }
 
@@ -547,12 +827,6 @@
             publishBtn.innerHTML = '<div class="spinner"></div><span>Publishing...</span>';
 
             try {
-                // Prepare form data
-                const formData = new FormData();
-                selectedFiles.forEach(file => {
-                    formData.append('images', file);
-                });
-
                 // Use validated and trimmed data
                 const validHeadlines = headlines.slice(0, 5);
                 const validDescriptions = descriptions.slice(0, 5);
@@ -568,25 +842,204 @@
                     status: 'PAUSED', // Start paused for review
                 };
 
-                formData.append('adData', JSON.stringify(adData));
+                // Publish ad with AI-generated images
+                showAlert('Publishing ad with AI-generated images...', 'info');
 
-                showAlert('Uploading images to S3...', 'info');
+                const basePrompt = document.getElementById('imagePrompt').value.trim();
 
-                // Make request
-                const response = await fetch('/api/publish-ad-full-flow', {
+                // Enhance prompt with ad context (same logic as generate button)
+                let enhancedPrompt = basePrompt;
+                if (adData.businessName) {
+                    enhancedPrompt += `. Brand: ${adData.businessName}`;
+                }
+                if (adData.longHeadline) {
+                    enhancedPrompt += `. Message: ${adData.longHeadline}`;
+                }
+                if (validHeadlines.length > 0) {
+                    enhancedPrompt += `. Keywords: ${validHeadlines.slice(0, 3).join(', ')}`;
+                }
+
+                console.log('Enhanced prompt for publishing:', enhancedPrompt);
+
+                const response = await fetch('/api/generate-and-publish', {
                     method: 'POST',
-                    body: formData,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: enhancedPrompt,
+                        ...adData,
+                    }),
                 });
 
                 const result = await response.json();
 
                 if (result.success) {
-                    showAlert('✅ Ad published successfully!', 'success');
-                    document.getElementById('resultContent').textContent = JSON.stringify(result, null, 2);
-                    document.getElementById('resultSection').classList.add('show');
+                    const mode = result.mode ? ` (${result.mode} mode)` : '';
+                    showAlert(`✅ Ad published successfully${mode}!`, 'success');
 
-                    // Scroll to result
-                    document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+                    // Build enhanced results display
+                    const resultHTML = `
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: #48bb78; margin-bottom: 10px;">✅ Ad Successfully Published!</h4>
+                            <p style="color: #4a5568; margin-bottom: 15px;">Your Responsive Display Ad has been created and is ready for review in Google Ads.</p>
+                        </div>
+
+                        ${result.generatedImages ? `
+                        <div style="margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e2e8f0;">
+                            <h4 style="margin-bottom: 15px; color: #2d3748;">🖼️ Generated Images</h4>
+
+                            <div style="margin-bottom: 15px;">
+                                <h5 style="font-size: 0.9rem; color: #4a5568; margin-bottom: 8px;">Landscape (1200x628)</h5>
+                                ${result.generatedImages.landscape.map(url => `
+                                    <img src="${url}" alt="Landscape" style="width: 100%; border-radius: 8px; border: 2px solid #e2e8f0; margin-bottom: 8px;">
+                                    <a href="${url}" target="_blank" style="font-size: 0.85rem; color: #4299e1; text-decoration: none; display: block; margin-bottom: 10px;">
+                                        📎 ${url.split('/').pop()}
+                                    </a>
+                                `).join('')}
+                            </div>
+
+                            <div style="margin-bottom: 10px;">
+                                <h5 style="font-size: 0.9rem; color: #4a5568; margin-bottom: 8px;">Square (1200x1200)</h5>
+                                ${result.generatedImages.square.map(url => `
+                                    <img src="${url}" alt="Square" style="width: 100%; border-radius: 8px; border: 2px solid #e2e8f0; margin-bottom: 8px;">
+                                    <a href="${url}" target="_blank" style="font-size: 0.85rem; color: #4299e1; text-decoration: none; display: block; margin-bottom: 10px;">
+                                        📎 ${url.split('/').pop()}
+                                    </a>
+                                `).join('')}
+                            </div>
+
+                            <div style="background: #f7fafc; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                                <h5 style="font-size: 0.85rem; color: #4a5568; margin: 0 0 8px 0;">💾 S3 Storage Locations:</h5>
+                                ${result.generatedImages.landscape.map(url => `
+                                    <div style="font-size: 0.8rem; color: #718096; margin-bottom: 5px; word-break: break-all;">
+                                        <strong>Landscape:</strong> ${url}
+                                    </div>
+                                `).join('')}
+                                ${result.generatedImages.square.map(url => `
+                                    <div style="font-size: 0.8rem; color: #718096; margin-bottom: 5px; word-break: break-all;">
+                                        <strong>Square:</strong> ${url}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${result.prompt || basePrompt ? `
+                        <div style="margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e2e8f0;">
+                            <h4 style="margin-bottom: 15px; color: #2d3748;">💬 Image Generation Prompts</h4>
+
+                            ${basePrompt ? `
+                            <div style="background: #fffaf0; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid #ed8936;">
+                                <h5 style="font-size: 0.85rem; color: #c05621; margin: 0 0 8px 0;">📝 Original Prompt:</h5>
+                                <p style="font-size: 0.9rem; color: #744210; margin: 0; font-style: italic;">"${basePrompt}"</p>
+                            </div>
+                            ` : ''}
+
+                            ${enhancedPrompt ? `
+                            <div style="background: #f0fff4; padding: 12px; border-radius: 8px; border-left: 3px solid #48bb78;">
+                                <h5 style="font-size: 0.85rem; color: #2f855a; margin: 0 0 8px 0;">✨ Enhanced Prompt (with ad context):</h5>
+                                <p style="font-size: 0.9rem; color: #276749; margin: 0; font-style: italic;">"${enhancedPrompt}"</p>
+                            </div>
+                            ` : ''}
+
+                            <p style="font-size: 0.8rem; color: #718096; margin-top: 10px; margin-bottom: 0;">
+                                💡 The enhanced prompt includes your business name, headlines, and message for more contextually accurate images.
+                            </p>
+                        </div>
+                        ` : ''}
+
+                        <div style="margin-bottom: 25px; padding-bottom: 25px; border-bottom: 1px solid #e2e8f0;">
+                            <h4 style="margin-bottom: 15px; color: #2d3748;">🎯 Google Ads Details</h4>
+
+                            <div style="background: #ebf8ff; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                <div style="margin-bottom: 10px;">
+                                    <strong style="color: #2c5282;">Ad Resource Name:</strong><br>
+                                    <code style="font-size: 0.85rem; color: #2a4365; background: white; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 5px;">
+                                        ${result.resourceName}
+                                    </code>
+                                </div>
+
+                                <div style="margin-top: 15px;">
+                                    <a href="https://ads.google.com/aw/ads?campaignId=${process.env.GOOGLE_ADS_CAMPAIGN_ID || '1358949011'}&adGroupId=${process.env.GOOGLE_ADS_AD_GROUP_ID || '51907360302'}"
+                                       target="_blank"
+                                       class="btn btn-primary"
+                                       style="display: inline-block; padding: 12px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                                        🔗 View Ad in Google Ads
+                                    </a>
+                                </div>
+
+                                <p style="font-size: 0.8rem; color: #4a5568; margin: 15px 0 0 0;">
+                                    ℹ️ Your ad is currently <strong>PAUSED</strong>. Review it in Google Ads and enable when ready.
+                                </p>
+                            </div>
+
+                            ${result.assets ? `
+                            <div style="background: #f7fafc; padding: 12px; border-radius: 8px;">
+                                <h5 style="font-size: 0.85rem; color: #4a5568; margin: 0 0 8px 0;">📊 Asset IDs:</h5>
+                                ${result.assets.landscape ? `
+                                    <div style="font-size: 0.8rem; color: #718096; margin-bottom: 5px;">
+                                        <strong>Landscape:</strong> ${result.assets.landscape.join(', ')}
+                                    </div>
+                                ` : ''}
+                                ${result.assets.square ? `
+                                    <div style="font-size: 0.8rem; color: #718096;">
+                                        <strong>Square:</strong> ${result.assets.square.join(', ')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            ` : ''}
+                        </div>
+
+                        ${result.ad ? `
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #2d3748;">📝 Ad Content</h4>
+
+                            <div style="background: #f7fafc; padding: 15px; border-radius: 8px;">
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #2d3748;">Business Name:</strong>
+                                    <p style="margin: 5px 0 0 0; color: #4a5568;">${result.ad.businessName}</p>
+                                </div>
+
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #2d3748;">Long Headline:</strong>
+                                    <p style="margin: 5px 0 0 0; color: #4a5568;">${result.ad.longHeadline}</p>
+                                </div>
+
+                                ${result.ad.headlines ? `
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: #2d3748;">Headlines:</strong>
+                                    <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #4a5568;">
+                                        ${result.ad.headlines.map(h => `<li>${h}</li>`).join('')}
+                                    </ul>
+                                </div>
+                                ` : ''}
+
+                                ${result.ad.descriptions ? `
+                                <div>
+                                    <strong style="color: #2d3748;">Descriptions:</strong>
+                                    <ul style="margin: 5px 0 0 0; padding-left: 20px; color: #4a5568;">
+                                        ${result.ad.descriptions.map(d => `<li>${d}</li>`).join('')}
+                                    </ul>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        <details style="margin-top: 20px;">
+                            <summary style="cursor: pointer; color: #4299e1; font-size: 0.9rem; font-weight: 600;">
+                                🔍 View Full JSON Response
+                            </summary>
+                            <pre style="background: #f7fafc; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; margin-top: 10px;">${JSON.stringify(result, null, 2)}</pre>
+                        </details>
+                    `;
+
+                    // Show result in right column
+                    document.getElementById('resultContent').innerHTML = resultHTML;
+                    document.getElementById('resultSection').style.display = 'block';
+                    document.getElementById('generatedPreviewBox').style.display = 'none';
+                    document.getElementById('emptyPreview').style.display = 'none';
                 } else {
                     showAlert(`❌ Failed: ${result.error}`, 'error');
                 }
