@@ -34,7 +34,8 @@ async function uploadToS3(fileBuffer, fileName, contentType, options = {}) {
     Key: uniqueKey,
     Body: fileBuffer,
     ContentType: contentType,
-    ACL: 'public-read', // Make publicly accessible
+    // ACL removed - bucket has ACLs disabled
+    // Images will be accessible via bucket policy or signed URLs
     Metadata: {
       ...metadata,
       originalName: fileName,

@@ -404,19 +404,39 @@
             });
         });
 
-        // Line counters for textareas
+        // Line counters for textareas with character validation
         document.getElementById('headlines').addEventListener('input', (e) => {
             const lines = e.target.value.split('\n').filter(l => l.trim());
             const counter = document.getElementById('headlinesCount');
-            counter.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
-            counter.classList.toggle('warning', lines.length > 5);
+
+            // Check if any headline exceeds 30 characters
+            const invalidLines = lines.filter(l => l.length > 30);
+            const hasInvalidLength = invalidLines.length > 0;
+
+            if (hasInvalidLength) {
+                counter.textContent = `${lines.length} lines (${invalidLines.length} too long!)`;
+                counter.classList.add('warning');
+            } else {
+                counter.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
+                counter.classList.toggle('warning', lines.length > 5);
+            }
         });
 
         document.getElementById('descriptions').addEventListener('input', (e) => {
             const lines = e.target.value.split('\n').filter(l => l.trim());
             const counter = document.getElementById('descriptionsCount');
-            counter.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
-            counter.classList.toggle('warning', lines.length > 5);
+
+            // Check if any description exceeds 90 characters
+            const invalidLines = lines.filter(l => l.length > 90);
+            const hasInvalidLength = invalidLines.length > 0;
+
+            if (hasInvalidLength) {
+                counter.textContent = `${lines.length} lines (${invalidLines.length} too long!)`;
+                counter.classList.add('warning');
+            } else {
+                counter.textContent = `${lines.length} line${lines.length !== 1 ? 's' : ''}`;
+                counter.classList.toggle('warning', lines.length > 5);
+            }
         });
 
         // Image upload handling
@@ -497,6 +517,31 @@
                 return;
             }
 
+            // Validate headlines and descriptions before submitting
+            const headlines = document.getElementById('headlines').value
+                .split('\n')
+                .map(h => h.trim())
+                .filter(h => h);
+
+            const descriptions = document.getElementById('descriptions').value
+                .split('\n')
+                .map(d => d.trim())
+                .filter(d => d);
+
+            // Check headline lengths
+            const invalidHeadlines = headlines.filter(h => h.length > 30);
+            if (invalidHeadlines.length > 0) {
+                showAlert(`${invalidHeadlines.length} headline(s) exceed 30 characters. Please shorten them.`, 'error');
+                return;
+            }
+
+            // Check description lengths
+            const invalidDescriptions = descriptions.filter(d => d.length > 90);
+            if (invalidDescriptions.length > 0) {
+                showAlert(`${invalidDescriptions.length} description(s) exceed 90 characters. Please shorten them.`, 'error');
+                return;
+            }
+
             const publishBtn = document.getElementById('publishBtn');
             publishBtn.disabled = true;
             publishBtn.innerHTML = '<div class="spinner"></div><span>Publishing...</span>';
@@ -508,24 +553,15 @@
                     formData.append('images', file);
                 });
 
-                // Prepare ad data
-                const headlines = document.getElementById('headlines').value
-                    .split('\n')
-                    .map(h => h.trim())
-                    .filter(h => h)
-                    .slice(0, 5);
-
-                const descriptions = document.getElementById('descriptions').value
-                    .split('\n')
-                    .map(d => d.trim())
-                    .filter(d => d)
-                    .slice(0, 5);
+                // Use validated and trimmed data
+                const validHeadlines = headlines.slice(0, 5);
+                const validDescriptions = descriptions.slice(0, 5);
 
                 const adData = {
                     businessName: document.getElementById('businessName').value,
                     longHeadline: document.getElementById('longHeadline').value,
-                    headlines,
-                    descriptions,
+                    headlines: validHeadlines,
+                    descriptions: validDescriptions,
                     finalUrl: document.getElementById('finalUrl').value,
                     callToAction: document.getElementById('callToAction').value,
                     adName: `RDA_${Date.now()}`,
