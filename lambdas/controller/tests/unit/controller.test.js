@@ -3,11 +3,25 @@
  * Task 1.3 from PRD.md Section 2.2
  */
 
+// Set up AWS SDK before imports
+process.env.AWS_REGION = 'us-east-1';
+process.env.AWS_ACCESS_KEY_ID = 'test';
+process.env.AWS_SECRET_ACCESS_KEY = 'test';
+
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
 
 // Set up AWS SDK
-AWS.config.update({ region: 'us-east-1' });
+AWS.config.update({ 
+    region: 'us-east-1',
+    credentials: {
+        accessKeyId: 'test',
+        secretAccessKey: 'test'
+    }
+});
+
+// Set AWS mock to use the same AWS instance
+AWSMock.setSDKInstance(AWS);
 
 // Import the handler
 const { handler } = require('../../index');
@@ -440,6 +454,16 @@ describe('Controller Lambda', () => {
         });
 
         it('should handle DynamoDB errors gracefully', async () => {
+            const validRequest = {
+                httpMethod: 'POST',
+                path: '/generate',
+                body: JSON.stringify({
+                    customer_id: 'test_customer_001',
+                    user_prompt: 'Generate RDA images for a tech startup focused on AI',
+                    openai_api_key: 'sk-test-key-123456789'
+                })
+            };
+
             AWSMock.mock('DynamoDB.DocumentClient', 'put', (params, callback) => {
                 callback(new Error('DynamoDB error'));
             });
