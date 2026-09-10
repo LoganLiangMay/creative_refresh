@@ -32,7 +32,7 @@ Globals:
   Function:
     Timeout: 120
     MemorySize: 1024
-    Runtime: nodejs20.x
+    Runtime: nodejs22.x
     Environment:
       Variables:
         ENVIRONMENT: !Ref Environment
@@ -448,6 +448,101 @@ Resources:
           Value: !Ref Environment
         - Key: Application
           Value: RDAGenerator
+
+  # ===========================================================================
+  # LAMBDA FUNCTIONS
+  # ===========================================================================
+
+  ControllerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'rda-controller-${Environment}'
+      CodeUri: lambdas/controller/
+      Handler: index.handler
+      Runtime: nodejs22.x
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt ControllerLambdaRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          DYNAMODB_TABLE: !Ref RDAImageJobsTable
+          PROMPT_BUILDER_FUNCTION: !Sub 'rda-prompt-builder-${Environment}'
+          MOCK_MODE: !Ref MockMode
+      Events:
+        GenerateAPI:
+          Type: Api
+          Properties:
+            Path: /generate
+            Method: POST
+        GetJobAPI:
+          Type: Api
+          Properties:
+            Path: /jobs/{id}
+            Method: GET
+        RegenerateAPI:
+          Type: Api
+          Properties:
+            Path: /regenerate
+            Method: POST
+        GetRegenerationAPI:
+          Type: Api
+          Properties:
+            Path: /regenerations/{id}
+            Method: GET
+      Tags:
+        Environment: !Ref Environment
+        Application: RDAGenerator
+        Component: Controller
+
+  PromptBuilderLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'rda-prompt-builder-${Environment}'
+      CodeUri: lambdas/prompt-builder/
+      Handler: index.handler
+      Runtime: nodejs22.x
+      Timeout: 120
+      MemorySize: 1024
+      Role: !GetAtt PromptBuilderLambdaRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          DYNAMODB_TABLE: !Ref RDAImageJobsTable
+          SQS_QUEUE_URL: !Ref ImageGenerationQueue
+          MOCK_MODE: !Ref MockMode
+      Tags:
+        Environment: !Ref Environment
+        Application: RDAGenerator
+        Component: PromptBuilder
+
+  WorkerLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'rda-worker-${Environment}'
+      CodeUri: lambdas/worker/
+      Handler: index.handler
+      Runtime: nodejs22.x
+      Timeout: 120
+      MemorySize: 2048
+      Role: !GetAtt WorkerLambdaRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          DYNAMODB_TABLE: !Ref RDAImageJobsTable
+          S3_BUCKET: !Ref RDAImagesBucket
+          REPLICATE_SECRET_ARN: !Ref ReplicateAPITokenSecret
+          MOCK_MODE: !Ref MockMode
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ImageGenerationQueue.Arn
+            BatchSize: 1
+      Tags:
+        Environment: !Ref Environment
+        Application: RDAGenerator
+        Component: Worker
 
 # =============================================================================
 # OUTPUTS

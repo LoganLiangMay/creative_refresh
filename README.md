@@ -1,35 +1,63 @@
-# RDA Image Generator - Phase 1 Core MVP
+# RDA Image Generator
 
-Google Responsive Display Ad (RDA) image generation system using AWS Lambda and Replicate API.
+Google Responsive Display Ad (RDA) image generation system using AWS Lambda, SQS, and Gemini Imagen API.
 
-## Phase 1 Implementation Status
+## What It Is
 
-- ✅ Infrastructure setup (DynamoDB, S3, SQS)
-- ✅ Controller Lambda (API endpoints)
-- ✅ Prompt Builder Lambda (GPT-4 integration)
-- ✅ Worker Lambda with MOCK MODE
-- 🔄 Integration testing
-- ⏳ Real mode validation
+A serverless image generation pipeline that creates Google RDA-compliant images using AI. Supports mock mode for cost-free development and real mode for production image generation.
+
+## Status
+
+- ✅ Core infrastructure (DynamoDB, S3, SQS)  
+- ✅ Controller Lambda (API endpoints)  
+- ✅ Prompt Builder Lambda (OpenAI GPT-4 integration)  
+- ✅ Worker Lambda with mock mode support  
+- ✅ Unit tests for all components  
+- ⚠️ Integration tests require AWS deployment
 
 ## Quick Start
 
 ### Prerequisites
 
-- AWS CLI configured
-- SAM CLI installed
-- Node.js 20.x
-- npm or yarn
+- **Node.js 22.x** (or 20.x minimum)
+- **npm** or yarn
+- **AWS CLI** configured with credentials
+- **SAM CLI** installed ([install guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html))
 
 ### Installation
 
 ```bash
-# Install dependencies
+# Clone and install dependencies
+git clone <repo-url>
+cd <repo-name>
+
+# Install root dependencies
 npm install
 
-# Install Lambda dependencies
+# Install Lambda function dependencies
 cd lambdas/controller && npm install && cd ../..
 cd lambdas/prompt-builder && npm install && cd ../..
 cd lambdas/worker && npm install && cd ../..
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+cd lambdas/controller && npm test && cd ../..
+cd lambdas/prompt-builder && npm test && cd ../..
+cd lambdas/worker && npm test && cd ../..
+```
+
+All tests should pass. The worker tests focus on the mock image generator (100% coverage).
+
+### Local Development
+
+Build and validate the SAM template:
+
+```bash
+sam build
+sam validate
 ```
 
 ### Deployment
@@ -37,135 +65,42 @@ cd lambdas/worker && npm install && cd ../..
 #### Deploy with Mock Mode (Development - FREE)
 
 ```bash
-# Deploy to dev environment with mock mode
-npm run deploy:dev
+# Build and deploy to dev environment
+sam build
+sam deploy --parameter-overrides Environment=dev MockMode=true --guided
+```
 
-# OR manually
-sam deploy --parameter-overrides Environment=dev MockMode=true
+The `--guided` flag walks you through configuration on first deploy. Subsequent deploys can use:
+
+```bash
+npm run deploy:dev
 ```
 
 #### Deploy with Real Mode (Production - COSTS MONEY)
 
-```bash
-# Deploy to prod environment with real Replicate
-npm run deploy:prod
+⚠️ **Warning**: Real mode incurs costs (~$0.045 per image via Gemini Imagen API).
 
-# OR manually
-sam deploy --parameter-overrides Environment=prod MockMode=false
+```bash
+sam build
+sam deploy --parameter-overrides Environment=prod MockMode=false --guided
+```
+
+Or use:
+
+```bash
+npm run deploy:prod
 ```
 
 ### Configuration
 
-1. **Update Replicate API Token** (for real mode only):
+After deploying, configure the Gemini API secret (real mode only):
 
 ```bash
+# Update with your actual Gemini API key
 aws secretsmanager update-secret \
   --secret-id rda-generator/replicate-token-dev \
-  --secret-string '{"token":"r8_YOUR_ACTUAL_TOKEN"}'
+  --secret-string '{"token":"YOUR_GEMINI_API_KEY"}'
 ```
-
-2. **Environment Variables**:
-- `MOCK_MODE`: Set to "true" for free testing, "false" for real images
-- `ENVIRONMENT`: "dev", "staging", or "prod"
-
-## API Endpoints
-
-### Generate Images
-
-```bash
-POST /generate
-{
-  "customer_id": "customer_001",
-  "user_prompt": "Generate RDA images for AI tech startup",
-  "openai_api_key": "sk-...",
-  "generation_config": {
-    "max_images": 10
-  }
-}
-```
-
-Response:
-```json
-{
-  "job_id": "job_abc123",
-  "status": "queued",
-  "status_url": "/jobs/job_abc123",
-  "estimated_completion_seconds": 90
-}
-```
-
-### Check Job Status
-
-```bash
-GET /jobs/{job_id}
-```
-
-Response:
-```json
-{
-  "job_id": "job_abc123",
-  "status": "completed",
-  "images": [
-    {
-      "image_id": "img_001",
-      "s3_url": "https://...",
-      "aspect_ratio": "1.91:1",
-      "cost": 0
-    }
-  ],
-  "summary": {
-    "total_cost": 0,
-    "total_images": 10
-  }
-}
-```
-
-## Testing
-
-### Test with Mock Mode (FREE)
-
-```bash
-# Set environment variables
-export OPENAI_API_KEY="sk-test-key"
-export CONTROLLER_FUNCTION="rda-generator-controller-dev"
-
-# Run integration test
-node scripts/test-integration.js
-```
-
-Expected output:
-- 10 mock images generated
-- Total cost: $0.00
-- Completion time: <10 seconds
-
-### Test with Real Mode (COSTS ~$0.45)
-
-```bash
-# Switch to real mode
-aws lambda update-function-configuration \
-  --function-name rda-generator-worker-dev \
-  --environment Variables={MOCK_MODE=false}
-
-# Run test with only 2 images
-node scripts/test-integration.js
-```
-
-## Cost Breakdown
-
-### Mock Mode (Development)
-- Image generation: $0.00
-- AWS Lambda: ~$0.01
-- DynamoDB: ~$0.01
-- S3: ~$0.01
-- **Total: ~$0.03 per 100 images**
-
-### Real Mode (Production)
-- Replicate API: $0.045 per image
-- OpenAI GPT-4: ~$0.01 per batch
-- AWS Lambda: ~$0.01
-- DynamoDB: ~$0.01
-- S3: ~$0.01
-- **Total: ~$0.48 per 10 images**
 
 ## Architecture
 
@@ -174,10 +109,10 @@ node scripts/test-integration.js
 │  Controller │────▶│ Prompt       │────▶│     SQS       │
 │   Lambda    │     │ Builder      │     │    Queue      │
 └─────────────┘     └──────────────┘     └───────────────┘
-                           │                      │
-                           ▼                      ▼
-                    ┌──────────────┐     ┌───────────────┐
-                    │   DynamoDB   │◀────│    Worker     │
+       │                   │                      │
+       │                   ▼                      ▼
+       │            ┌──────────────┐     ┌───────────────┐
+       └───────────▶│   DynamoDB   │◀────│    Worker     │
                     │    Table     │     │    Lambda     │
                     └──────────────┘     └───────────────┘
                                                  │
@@ -188,9 +123,117 @@ node scripts/test-integration.js
                                          └───────────────┘
 ```
 
-## Monitoring
+**Flow:**
+1. Controller receives POST /generate request
+2. Validates input and creates job in DynamoDB
+3. Invokes Prompt Builder Lambda asynchronously
+4. Prompt Builder analyzes user prompt via OpenAI GPT-4
+5. Generates optimized prompts and sends messages to SQS
+6. Worker Lambda processes SQS messages
+7. Generates images (mock or real via Gemini API)
+8. Uploads images to S3 and updates DynamoDB
+9. Client polls GET /jobs/{id} for completion
 
-### View Logs
+## API Endpoints
+
+### POST /generate
+
+Create a new image generation job.
+
+**Request:**
+```json
+{
+  "customer_id": "customer_001",
+  "user_prompt": "Generate RDA images for AI tech startup",
+  "openai_api_key": "sk-...",
+  "generation_config": {
+    "max_images": 10
+  }
+}
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "job_id": "job_abc123",
+  "status": "queued",
+  "status_url": "/jobs/job_abc123",
+  "estimated_completion_seconds": 10
+}
+```
+
+### GET /jobs/{job_id}
+
+Check job status and retrieve generated images.
+
+**Response (200 OK):**
+```json
+{
+  "job_id": "job_abc123",
+  "status": "completed",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:01:00Z",
+  "images": [
+    {
+      "image_id": "img_001",
+      "s3_url": "https://s3.amazonaws.com/...",
+      "aspect_ratio": "1.91:1",
+      "dimensions": "1200x628",
+      "cost": 0
+    }
+  ],
+  "progress": {
+    "total": 10,
+    "completed": 10,
+    "failed": 0
+  },
+  "summary": {
+    "total_cost": 0,
+    "total_images": 10
+  }
+}
+```
+
+## Development
+
+### Mock Mode vs Real Mode
+
+**Mock Mode** (`MOCK_MODE=true`):
+- Generates placeholder images instantly
+- Zero API costs
+- Ideal for development and testing
+- ~10 second completion time for 10 images
+
+**Real Mode** (`MOCK_MODE=false`):
+- Uses Gemini Imagen API for actual image generation
+- Costs ~$0.045 per image
+- Production-quality images
+- ~90 second completion time for 10 images
+
+### Environment Variables
+
+Each Lambda function uses:
+- `ENVIRONMENT`: Deployment environment (dev/staging/prod)
+- `DYNAMODB_TABLE`: DynamoDB table name
+- `MOCK_MODE`: Enable mock mode (true/false)
+- `S3_BUCKET`: S3 bucket for image storage (Worker)
+- `PROMPT_BUILDER_FUNCTION`: Prompt builder function name (Controller)
+- `SQS_QUEUE_URL`: SQS queue URL (Prompt Builder)
+- `REPLICATE_SECRET_ARN`: Secrets Manager ARN for API key (Worker)
+
+## Troubleshooting
+
+### Common Issues
+
+1. **SAM build fails**: Ensure Node.js 22.x is installed (`node --version`)
+2. **Tests fail with UUID errors**: Dependencies need reinstall (`npm install uuid@^9.0.1`)
+3. **Deployment fails**: Check AWS credentials are configured (`aws sts get-caller-identity`)
+4. **Lambda timeout**: Increase timeout in `template.yaml` (current: 120s for worker)
+5. **S3 access denied**: Verify IAM roles in `template.yaml` have correct permissions
+
+### Logs
+
+View Lambda logs:
 
 ```bash
 # Controller logs
@@ -203,49 +246,44 @@ sam logs -n PromptBuilderLambda --stack-name rda-generator-dev --tail
 sam logs -n WorkerLambda --stack-name rda-generator-dev --tail
 ```
 
-### CloudWatch Metrics
+## Testing
 
-- Lambda invocations
-- Lambda errors
-- Lambda duration
-- DynamoDB read/write capacity
-- SQS messages sent/received
-- S3 PUT requests
+### Local Verification
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Lambda timeout**: Increase timeout in template.yaml
-2. **SQS visibility timeout**: Ensure it's longer than Lambda timeout
-3. **Replicate token invalid**: Update secret in Secrets Manager
-4. **OpenAI key invalid**: Verify key starts with "sk-"
-5. **S3 access denied**: Check Lambda IAM role permissions
-
-### Debug Mode
+Run the complete test suite locally without any AWS or API credentials:
 
 ```bash
-# Enable detailed logging
-export DEBUG=true
+# Install dependencies first
+npm install
+cd lambdas/controller && npm install && cd ../..
+cd lambdas/prompt-builder && npm install && cd ../..
+cd lambdas/worker && npm install && cd ../..
 
-# Check Lambda environment
-aws lambda get-function-configuration \
-  --function-name rda-generator-worker-dev
+# Run all tests (no AWS/API keys required - uses mocks)
+cd lambdas/controller && npm test   # 17/17 tests ✅
+cd ../prompt-builder && npm test    # 12/12 tests ✅
+cd ../worker && npm test             # 16/16 tests ✅
+
+# Expected: 45/45 tests pass
 ```
 
-## Phase 2 Features (Coming Soon)
+### Continuous Integration
 
-- User-provided images support
-- Regeneration endpoint
-- Advanced retry logic
-- Rate limiting
-- Load testing
-- Production deployment
+This project uses GitHub Actions to automatically run tests on every push and pull request:
+- ✅ Runs all three test suites (controller, prompt-builder, worker)
+- ✅ Uses Node.js 22.x
+- ✅ No AWS credentials required (tests use mocks)
+- ✅ Must pass before merging
 
-## Support
+View CI status in the "Actions" tab or on pull requests.
 
-For issues or questions:
-1. Check CloudWatch logs
-2. Review error messages in job status
-3. Verify environment variables
-4. Ensure Mock Mode is enabled for testing
+## Contributing
+
+1. Create a feature branch
+2. Make changes
+3. Run tests: `npm test` in each lambda folder (all tests must pass)
+4. Submit PR (CI will verify tests automatically)
+
+## License
+
+[Add license information]
