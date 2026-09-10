@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install controller dependencies
+        working-directory: lambdas/controller
+        run: npm ci
+
+      - name: Install prompt-builder dependencies
+        working-directory: lambdas/prompt-builder
+        run: npm ci
+
+      - name: Install worker dependencies
+        working-directory: lambdas/worker
+        run: npm ci
+
+      - name: Test controller
+        working-directory: lambdas/controller
+        run: npm test
+
+      - name: Test prompt-builder
+        working-directory: lambdas/prompt-builder
+        run: npm test
+
+      - name: Test worker
+        working-directory: lambdas/worker
+        run: npm test

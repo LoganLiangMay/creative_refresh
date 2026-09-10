@@ -246,12 +246,43 @@ sam logs -n PromptBuilderLambda --stack-name rda-generator-dev --tail
 sam logs -n WorkerLambda --stack-name rda-generator-dev --tail
 ```
 
+## Testing
+
+### Local Verification
+
+Run the complete test suite locally without any AWS or API credentials:
+
+```bash
+# Install dependencies first
+npm install
+cd lambdas/controller && npm install && cd ../..
+cd lambdas/prompt-builder && npm install && cd ../..
+cd lambdas/worker && npm install && cd ../..
+
+# Run all tests (no AWS/API keys required - uses mocks)
+cd lambdas/controller && npm test   # 17/17 tests ✅
+cd ../prompt-builder && npm test    # 12/12 tests ✅
+cd ../worker && npm test             # 16/16 tests ✅
+
+# Expected: 45/45 tests pass
+```
+
+### Continuous Integration
+
+This project uses GitHub Actions to automatically run tests on every push and pull request:
+- ✅ Runs all three test suites (controller, prompt-builder, worker)
+- ✅ Uses Node.js 22.x
+- ✅ No AWS credentials required (tests use mocks)
+- ✅ Must pass before merging
+
+View CI status in the "Actions" tab or on pull requests.
+
 ## Contributing
 
 1. Create a feature branch
 2. Make changes
-3. Run tests: `npm test` in each lambda folder
-4. Submit PR with test coverage
+3. Run tests: `npm test` in each lambda folder (all tests must pass)
+4. Submit PR (CI will verify tests automatically)
 
 ## License
 
