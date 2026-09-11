@@ -10,7 +10,7 @@
     "build": "sam build",
     "validate": "sam validate",
     "local:controller": "sam local start-api --env-vars env.json",
-    "test:integration": "jest --testPathPattern=integration"
+    "test:integration": "jest tests/integration"
   },
   "keywords": [
     "rda",
