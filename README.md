@@ -13,7 +13,7 @@ A serverless image generation pipeline that creates Google RDA-compliant images 
 - ✅ Prompt Builder Lambda (OpenAI GPT-4 integration)  
 - ✅ Worker Lambda with mock mode support  
 - ✅ Unit tests for all components  
-- ⚠️ Integration tests require AWS deployment
+- ✅ Integration tests (mock mode, no AWS deployment needed)
 
 ## Quick Start
 
@@ -267,10 +267,38 @@ cd ../worker && npm test             # 16/16 tests ✅
 # Expected: 45/45 tests pass
 ```
 
+### Integration Testing
+
+The project includes a mock-mode integration test that exercises the complete pipeline:
+- **Controller** → **Prompt Builder** → **Worker**
+- All AWS services (DynamoDB, S3, SQS, Lambda) are mocked
+- Verifies job creation, image generation, correct RDA dimensions, and $0 cost
+- No AWS credentials or API keys required
+- Runs in CI automatically
+
+```bash
+# Run just the integration test
+npm run test:integration
+```
+
+### Optional: Real AWS Integration Test
+
+For testing with actual AWS deployment (requires credentials):
+
+```bash
+# Set environment variables
+export CONTROLLER_FUNCTION=rda-generator-controller-dev
+export OPENAI_API_KEY=sk-your-key
+
+# Run integration test against deployed stack
+node scripts/test-integration.js
+```
+
 ### Continuous Integration
 
 This project uses GitHub Actions to automatically run tests on every push and pull request:
-- ✅ Runs all three test suites (controller, prompt-builder, worker)
+- ✅ Runs all three unit test suites (controller, prompt-builder, worker)
+- ✅ Runs integration smoke test (mock mode)
 - ✅ Uses Node.js 22.x
 - ✅ No AWS credentials required (tests use mocks)
 - ✅ Must pass before merging

@@ -49,3 +49,6 @@ jobs:
       - name: Test worker
         working-directory: lambdas/worker
         run: npm test
+
+      - name: Test integration (mock mode - no AWS/API keys)
+        run: npm run test:integration
