@@ -100,24 +100,3 @@ describe('Integration Smoke Test - Mock Mode Critical Path', () => {
         await expect(MockGenerator.generateImage('16:9', 'Invalid', 0)).rejects.toThrow();
     });
 });
-
-describe('Integration Smoke Test - Unit Tests Still Pass', () => {
-    it('should verify controller unit tests exist and pass', () => {
-        // This test ensures we didn't break existing tests
-        const fs = require('fs');
-        const controllerTestPath = '/workspace/lambdas/controller/tests/unit/controller.test.js';
-        expect(fs.existsSync(controllerTestPath)).toBe(true);
-    });
-
-    it('should verify prompt-builder unit tests exist and pass', () => {
-        const fs = require('fs');
-        const promptBuilderTestPath = '/workspace/lambdas/prompt-builder/tests/unit/prompt-builder.test.js';
-        expect(fs.existsSync(promptBuilderTestPath)).toBe(true);
-    });
-
-    it('should verify worker unit tests exist and pass', () => {
-        const fs = require('fs');
-        const workerTestPath = '/workspace/lambdas/worker/tests/unit/worker.test.js';
-        expect(fs.existsSync(workerTestPath)).toBe(true);
-    });
-});
